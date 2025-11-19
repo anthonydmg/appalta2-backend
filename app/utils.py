@@ -1,6 +1,10 @@
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from pydantic import EmailStr
 import asyncio
+import resend
+
+resend.api_key = "re_LFfxqjJa_2Tmm2XnjbWKAkefbVWoasCLd"
+
 # bllf wqlj nukv tuzg
 conf = ConnectionConfig(
     MAIL_USERNAME="anthonymig1@gmail.com",
@@ -14,6 +18,29 @@ conf = ConnectionConfig(
 )
 
 async def send_password_reset_email(to: EmailStr, reset_link: str):
+    resend.Emails.send({
+    "from": "onboarding@resend.dev",
+    "to": to,
+    "subject": "Recupera tu contraseña - Appalta2",
+    "html": f"""
+        <html>
+        <body style="font-family: Arial; text-align: center;">
+            <h2 style="color:#388E3C;">🔑 Recuperación de contraseña</h2>
+            <p>Hemos recibido una solicitud para restablecer tu contraseña.</p>
+            <p>Haz clic en el siguiente botón:</p>
+            <a href="{reset_link}" 
+               style="background-color:#4CAF50; color:white; padding:10px 20px;
+                      text-decoration:none; border-radius:8px;">Restablecer Contraseña</a>
+            <p style="color:gray; font-size:12px; margin-top:20px;">
+            Si no solicitaste esto, puedes ignorar este correo.
+            </p>
+        </body>
+        </html>
+        """
+    })
+
+async def send_password_reset_email_gmail(to: EmailStr, reset_link: str):
+    
     message = MessageSchema(
         subject="Recupera tu contraseña - Appalta2",
         recipients=[to],
@@ -37,7 +64,108 @@ async def send_password_reset_email(to: EmailStr, reset_link: str):
     fm = FastMail(conf)
     await fm.send_message(message)
 
+
 async def send_verification_email(to: EmailStr, verification_link: str):
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            body {{
+                background-color: #f3f6f4;
+                font-family: 'Segoe UI', Roboto, sans-serif;
+                color: #333;
+                margin: 0;
+                padding: 0;
+            }}
+            .container {{
+                max-width: 600px;
+                background: #ffffff;
+                margin: 40px auto;
+                border-radius: 16px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                overflow: hidden;
+            }}
+            .header {{
+                background: linear-gradient(135deg, #2E7D32, #66BB6A);
+                padding: 24px;
+                text-align: center;
+                color: white;
+            }}
+            .header h1 {{
+                margin: 0;
+                font-size: 24px;
+                font-weight: 600;
+            }}
+            .content {{
+                padding: 32px 40px;
+                text-align: center;
+            }}
+            .content p {{
+                font-size: 16px;
+                color: #444;
+                line-height: 1.6;
+                margin-bottom: 16px;
+            }}
+            .button {{
+                display: inline-block;
+                background: #43A047;
+                color: white;
+                padding: 14px 28px;
+                margin: 24px 0;
+                text-decoration: none;
+                border-radius: 8px;
+                font-weight: 600;
+                transition: background 0.3s ease;
+                font-size: 16px;
+            }}
+            .button:hover {{
+                background: #388E3C;
+            }}
+            .footer {{
+                background: #f0f0f0;
+                padding: 18px;
+                text-align: center;
+                font-size: 13px;
+                color: #666;
+            }}
+            .leaf-image {{
+                width: 100%;
+                height: 180px;
+                object-fit: cover;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>Appalta2 🌿</h1>
+                <p>Diagnóstico inteligente de hojas de palta Hass</p>
+            </div>
+            <div class="content">
+                <p>¡Hola!</p>
+                <p>Gracias por registrarte en <strong>Appalta2</strong>, la aplicación que te ayuda a analizar el estado de salud de tus hojas de palta.</p>
+                <p>Antes de comenzar, por favor verifica tu correo electrónico haciendo clic en el siguiente botón:</p>
+                <a href="{verification_link}" class="button">Verificar mi correo</a>
+                <p>Si no solicitaste esta cuenta, puedes ignorar este mensaje.</p>
+            </div>
+            <div class="footer">
+                © 2025 Appalta2 · Diagnóstico inteligente de hojas de palta Hass
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+    resend.Emails.send({
+    "from": "onboarding@resend.dev",
+    "to": to,
+    "subject": "🌿 Verifica tu correo electrónico - Appalta2",
+    "html": html
+    })
+
+async def send_verification_email_gmail(to: EmailStr, verification_link: str):
     html = f"""
     <!DOCTYPE html>
     <html>

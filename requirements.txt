@@ -8,3 +8,4 @@ pydantic[email]
 fastapi-mail
 python-dotenv
 bcrypt==4.0.1
+resend
