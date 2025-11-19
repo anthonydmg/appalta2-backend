@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enlace inválido - Appalta2</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #c8e6c9, #a5d6a7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background-color: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 6px 14px rgba(0,0,0,0.15);
+            text-align: center;
+            width: 90%;
+            max-width: 420px;
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        h2 {
+            color: #c62828;
+            margin-bottom: 12px;
+        }
+        p {
+            color: #555;
+            font-size: 15px;
+            margin-bottom: 24px;
+        }
+        .icon {
+            font-size: 60px;
+            color: #e53935;
+            margin-bottom: 16px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 12px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #43a047;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon">❌</div>
+        <h2>Enlace inválido o expirado</h2>
+        <p>El enlace que intentas usar ya no es válido. Es posible que haya expirado o que ya haya sido utilizado.</p>
+    </div>
+</body>
+</html>
