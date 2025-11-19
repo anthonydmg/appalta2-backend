@@ -33,7 +33,6 @@ async def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
 def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
     print("user:", user)
     db_user = crud.autenticate_user(db, user.email, user.password)
-    print("db_user:", db_user)
     if not db_user:
         raise HTTPException(status_code=401, detail="Credenciales invalidas")
     

@@ -17,6 +17,7 @@ if not raw_url:
 if raw_url.startswith("postgres://"):
     raw_url = raw_url.replace("postgres://", "postgresql+psycopg2://", 1)
 
+#DATABASE_URL=postgresql+psycopg2://postgres:admin@localhost:5432/appalta2
 DATABASE_URL = raw_url
 
 
