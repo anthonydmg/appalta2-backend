@@ -14,6 +14,15 @@ from datetime import datetime, timedelta, timezone
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
+
+@router.get("/")
+def root():
+    return {
+        "service": "Auth API Appalta2",
+        "version": "1.0.0",
+        "status": "running"
+    }
+
 @router.post("/register", response_model = schemas.UserResponse)
 async def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db_user = crud.get_user_by_email(db, user.email)

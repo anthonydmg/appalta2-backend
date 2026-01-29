@@ -1,4 +1,0 @@
-CREATE DATABASE appalta2
-WITH ENCODING 'UTF8'
-OWNER postgres
-TEMPLATE template0;

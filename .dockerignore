@@ -1,0 +1,21 @@
+# Entornos virtuales
+venv/
+.env/
+.env.local/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# SO
+.DS_Store
