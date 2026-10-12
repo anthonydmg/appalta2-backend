@@ -3,12 +3,9 @@ import pytest
 from app.assistant.domain.avocado import Summary, evaluate_combined, evaluate_sensor, phenological_stage, vapor_pressure_deficit
 
 
-def test_extreme_heat_alerts_with_one_short_recommendation():
+def test_extreme_heat_alert_only_informs():
     [alert] = evaluate_sensor("temperatura_ambiente", Summary(23.8, 17.0, 35.6))
-    assert alert == (
-        "Máxima de 35.6 °C: calor extremo (sobre 35 °C), riesgo de caída de flores y frutos. "
-        "Recomendación: regar en horas frescas sin encharcar."
-    )
+    assert alert == "Máxima de 35.6 °C: calor extremo (sobre 35 °C), riesgo de caída de flores y frutos."
 
 
 def test_temperature_above_normal_alerts():
@@ -38,8 +35,7 @@ def test_normal_or_mild_values_give_no_recommendation(sensor, summary):
 
 def test_alkaline_ph_alerts():
     [alert] = evaluate_sensor("ph_suelo", Summary(8.02, 7.7, 8.3))
-    assert alert.startswith("pH promedio de 8.02: muy alcalino (óptimo 5.5–6.5)")
-    assert "quelatos de hierro" in alert
+    assert alert == "pH promedio de 8.02: muy alcalino (óptimo 5.5–6.5), puede causar clorosis por falta de hierro y zinc."
 
 
 def test_soil_moisture_extremes_alert():
@@ -67,3 +63,25 @@ def test_vapor_pressure_deficit_is_data():
 
 def test_phenology_for_september():
     assert phenological_stage(9) == "floración y cuaje (referencial para la costa peruana)"
+
+
+@pytest.mark.parametrize(
+    "sensor, summary",
+    [
+        ("temperatura_ambiente", Summary(20.0, 1.0, 36.0)),
+        ("humedad_ambiente", Summary(90.0, 80.0, 99.0)),
+        ("temperatura_suelo", Summary(28.0, 25.0, 33.0)),
+        ("humedad_suelo", Summary(10.0, 5.0, 15.0)),
+        ("humedad_suelo", Summary(60.0, 50.0, 70.0)),
+        ("ph_suelo", Summary(8.0, 7.8, 8.3)),
+        ("ph_suelo", Summary(4.5, 4.2, 4.8)),
+    ],
+)
+def test_alerts_never_recommend(sensor, summary):
+    alerts = evaluate_sensor(sensor, summary)
+    assert alerts and not any("Recomendación" in a or "recomiend" in a.lower() for a in alerts)
+
+
+def test_combined_alert_never_recommends():
+    [alert] = evaluate_combined({"temperatura_ambiente": Summary(24.0, 15.0, 35.6), "humedad_ambiente": Summary(74.0, 45.4, 98.5)})
+    assert "Recomendación" not in alert

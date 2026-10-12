@@ -64,6 +64,8 @@ class MeasurementRepository(Protocol):
 
     def count_measurements(self, station_id: int, start_ts: int, end_ts: int) -> int: ...
 
+    def station_sensor_codes(self, station_id: int) -> set[str]: ...
+
 
 _BASE_FROM = """
     FROM sensor_measurements sm
@@ -188,3 +190,12 @@ class SqlMeasurementRepository:
         )
         with self._engine.connect() as conn:
             return conn.execute(sql, {"station_id": station_id, "start_ts": start_ts, "end_ts": end_ts}).scalar_one()
+
+    def station_sensor_codes(self, station_id: int) -> set[str]:
+        """Códigos de los sensores habilitados en la estación (tabla station_sensors)."""
+        sql = text(
+            "SELECT s.sensor_code FROM station_sensors ss JOIN sensors s ON s.id = ss.sensor_id"
+            " WHERE ss.station_id = :station_id AND ss.enabled"
+        )
+        with self._engine.connect() as conn:
+            return {r.sensor_code for r in conn.execute(sql, {"station_id": station_id})}

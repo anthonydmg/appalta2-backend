@@ -32,6 +32,15 @@ from zoneinfo import ZoneInfo
 from starlette.concurrency import run_in_threadpool
 
 from app.assistant.chat.grounding import find_unsupported_values
+from app.assistant.chat.commands import (
+    PERIOD_HELP,
+    QUICK_REPLIES,
+    catalog_for,
+    is_command,
+    plan_command,
+    render_executions,
+    resolve_command_reply,
+)
 from app.assistant.chat.memory import ConversationStore, QueryContext
 from app.assistant.chat.planner import (
     COUNT,
@@ -39,13 +48,25 @@ from app.assistant.chat.planner import (
     LATEST,
     STATS,
     answer_from_context,
+    asks_for_advice,
+    asks_other_station,
+    unmeasured_variable,
     clarification_for,
     is_meta_question,
     is_out_of_scope,
     plan_tool_calls,
     resolve_clarification,
+    small_talk_kind,
 )
-from app.assistant.chat.prompts import build_system_prompt
+from app.assistant.chat.prompts import (
+    FAREWELL_MESSAGE,
+    GREETING_TEMPLATE,
+    NO_ADVICE_PREFIX,
+    OTHER_STATION_TEMPLATE,
+    UNMEASURED_TEMPLATE,
+    THANKS_MESSAGE,
+    build_system_prompt,
+)
 from app.assistant.config import AssistantSettings
 from app.assistant.data.repository import MeasurementRepository
 from app.assistant.domain.avocado import REFERENCE_TEXT
@@ -87,8 +108,27 @@ _OUT_OF_SCOPE_TEMPLATE = (
 _MARKDOWN = str.maketrans("", "", "*#")
 # Palabras que indican que la respuesta ya comunicó un aviso de calidad de datos.
 _WARNING_MENTIONED = re.compile(r"sensor|descart|desconect|falla|aviso", re.IGNORECASE)
-# La respuesta ya transmitió la alerta de la palta si recomienda algo.
-_RECOMMENDATION_MENTIONED = re.compile(r"recomend|recomiend|conviene|se sugiere", re.IGNORECASE)
+# "¿Cómo evolucionó / cambió / varió…?" y palabras con las que una respuesta describe la tendencia
+_TREND_QUESTION = re.compile(r"evolucion|cambio|vario|variacion|tendencia|como (?:fue|ha ido)|subio o bajo")
+_TREND_MENTIONED = re.compile(r"subio|bajo|aument|disminu|descend|ascend|estable|se mantuvo|tendencia|increment|redujo")
+# Riesgo que nombra cada alerta (texto normalizado, sin tildes)
+_ALERT_KEYS = ("alcalin", "acido", "calor extremo", "estres por calor", "estres de raices", "helada", "hongos",
+               "suelo seco", "encharcado", "phytophthora", "aire seco", "demanda de agua")  # fmt: skip
+# El modelo a veces se presenta antes de responder: se quita (la presentación es solo para los saludos).
+_SELF_INTRO = re.compile(r"^\s*(?:hola[,.!]?\s*)?soy agrisense,?\s*(?:tu|el)\s+asistente de paltas[.!]?\s*", re.IGNORECASE)
+# Frases con las que el modelo indica qué hacer. AgriSense no da recomendaciones: esas oraciones se quitan.
+_RECOMMENDATION = re.compile(
+    # "AgriSense no da recomendaciones" es el aviso, no una recomendación
+    r"(?<!no da )(?<!no doy )(?<!no damos )(?<!sin )(?:recomend|recomiend)"
+    r"|te sugiero|se sugiere|sugerimos|sugiero|aconsej|conviene|es recomendable|deberías|deberias"
+    r"|debería|deberia|\bdebes\b|\btienes que\b|\bhay que\b|asegúrate|asegurate|prioriza|considera (?:aplicar|regar|usar)"
+    r"|es (?:importante|fundamental|crucial|clave) (?:regar|aplicar|mantener|asegurar|evitar|monitorear|revisar|vigilar|acidificar|fertilizar)",
+    re.IGNORECASE,
+)
+_NO_ADVICE_FALLBACK = (
+    "AgriSense no da recomendaciones; solo informa los datos de la estación. "
+    "Puedes consultarlos con las preguntas rápidas (⚡)."
+)
 
 
 class StationNotFoundError(Exception):
@@ -126,6 +166,8 @@ class ChatResult:
     session_id: str
     tools: list[ToolExecution] = field(default_factory=list)
     duration_ms: int = 0
+    # Respuestas sugeridas que la app muestra como botones ("Aire (ambiente)", "Suelo", "Ambas")
+    quick_replies: list[str] = field(default_factory=list)
 
 
 class ChatService:
@@ -163,15 +205,23 @@ class ChatService:
         now = self._clock()
         memory_key = f"{user_id}:{station.code}:{session_id}"
         context = self._memory.get_context(memory_key)
-        # Respuesta a "¿ambiente o del suelo?": se continúa con la pregunta pendiente, ya completa.
-        question = resolve_clarification(question, context) or question
+        # Respuesta a "¿aire o suelo?": se continúa con el comando o la pregunta pendiente, ya completos.
+        if context and context.pending_question and is_command(context.pending_question):
+            question = resolve_command_reply(question, context.pending_question) or question
+        else:
+            question = resolve_clarification(question, context) or question
         pending: str | None = None
+        quick_replies: list[str] = []
+        command = None
+        if is_command(question):
+            # Consulta rápida ("/temp-suelo ayer"): se resuelve por código, sin interpretar con el modelo.
+            command = plan_command(question, now.date(), await run_in_threadpool(self._available_sensors, station.id))
         toolbox = StationToolbox(self._repo, station, self._settings.timezone, clock=self._clock, question=question)
 
         messages: list[Message] = [
             {"role": "system", "content": build_system_prompt(station, now, context)},
             *self._memory.get(memory_key),
-            {"role": "user", "content": question},
+            {"role": "user", "content": command.question if command and command.question else question},
         ]
         executions: list[ToolExecution] = []
         reminded = False
@@ -204,16 +254,51 @@ class ChatService:
                 return "\n\n".join(dict.fromkeys(o["respuesta_directa"] for o in outputs))
             return ""
 
+        planned = [] if command else [ToolCall(c.name, c.arguments) for c in plan_tool_calls(question, context, now.date())]
+        if command:
+            if command.answer:  # ayuda, comando desconocido o repregunta "¿aire o suelo?"
+                answer, quick_replies, pending = command.answer, command.quick_replies, command.pending
+                tool_rounds = max_rounds
+            else:
+                calls = [ToolCall(c.name, c.arguments) for c in command.calls]
+                tool_rounds = 1
+                async for event in run_calls(calls):
+                    yield event
+                if command.render:  # respuesta armada con plantilla, sin el modelo
+                    answer = command.render([e.output for e in executions], now) or _EMPTY_ANSWER
+                else:  # /riego, /diagnostico: el modelo redacta con los datos ya consultados
+                    answer = direct_answer(len(calls))
+        # Otra estación o "todas las estaciones": cada chat informa solo de su estación (respuesta fija).
+        # "¿Cuánto llovió?": la estación no tiene ese sensor (respuesta fija con lo que sí mide).
+        elif variable := unmeasured_variable(question):
+            answer = UNMEASURED_TEMPLATE.format(variable=variable, station_name=station.name)
+            tool_rounds = max_rounds
+        elif asks_other_station(question):
+            answer = OTHER_STATION_TEMPLATE.format(station_name=station.name)
+            tool_rounds = max_rounds
+        # Saludo, agradecimiento o despedida sin consulta: respuesta fija (siempre "Soy AgriSense…").
+        elif talk := small_talk_kind(question):
+            answer = {
+                "greeting": GREETING_TEMPLATE.format(station_name=station.name),
+                "thanks": THANKS_MESSAGE,
+                "farewell": FAREWELL_MESSAGE,
+            }[talk]
+            tool_rounds = max_rounds
         # Consulta planificada por código (pregunta clara o de seguimiento de la anterior).
-        planned = [ToolCall(c.name, c.arguments) for c in plan_tool_calls(question, context, now.date())]
-        if planned:
+        elif planned:
             tool_rounds = 1
             async for event in run_calls(planned):
                 yield event
             answer = direct_answer(len(planned))
+            if asks_for_advice(question):
+                # Pide qué hacer: AgriSense no recomienda. Se muestran los datos (plantilla, sin el modelo).
+                answer = NO_ADVICE_PREFIX + (
+                    render_executions([(e.name, e.output) for e in executions], now) or answer or _EMPTY_ANSWER
+                )
         elif ask := clarification_for(question, context):
             # "temperatura"/"humedad" sin decir si es ambiente o del suelo: se repregunta y se guarda la pregunta.
             answer, pending = ask, normalize_text(question)
+            quick_replies = list(QUICK_REPLIES)
         elif is_meta_question(question):
             # Pregunta sobre la respuesta anterior: se contesta con el contexto, sin consultar datos nuevos.
             answer = answer_from_context(question, context) or ""
@@ -280,12 +365,25 @@ class ChatService:
                     continue
                 if unsupported:
                     logger.warning("La respuesta corregida aún contiene valores no respaldados: %s", unsupported)
+                # AgriSense no da recomendaciones: si el modelo escribió alguna, esa oración se quita
+                # (también una presentación "Soy AgriSense…" innecesaria delante de la respuesta).
+                if (cleaned := _clean_model_answer(text)) != text:
+                    logger.info("Se limpió la respuesta del modelo (recomendaciones o presentación)")
+                    text = cleaned or _NO_ADVICE_FALLBACK
+                    if stream_text:
+                        yield ChatEvent("reset")
+                        yield ChatEvent("delta", text=prefix + text)
                 answer = prefix + text if text else _EMPTY_ANSWER
                 # Una alerta seria (valor en exceso para la palta) nunca se omite, aunque el modelo la resuma.
                 if alerts := _missing_alerts_note(answer, executions):
                     answer += alerts
                     if stream_text:
                         yield ChatEvent("delta", text=alerts)
+                # "¿Cómo evolucionó…?": la tendencia (calculada por código) no puede faltar.
+                if trend := _missing_trend_note(question, answer, executions):
+                    answer += trend
+                    if stream_text:
+                        yield ChatEvent("delta", text=trend)
                 if note := _missing_quality_note(answer, executions):
                     answer += note
                     if stream_text:
@@ -314,6 +412,7 @@ class ChatService:
             session_id=session_id,
             tools=executions,
             duration_ms=int((time.perf_counter() - started) * 1000),
+            quick_replies=quick_replies,
         )
         logger.info(
             "chat station=%s session=%s tools=%s duration_ms=%d",
@@ -323,6 +422,20 @@ class ChatService:
             result.duration_ms,
         )
         yield ChatEvent("done", result=result)
+
+    async def commands_for(self, station_code: str) -> dict[str, Any]:
+        """Catálogo de consultas rápidas de la estación (sin los comandos de sensores que no tiene)."""
+        station = await run_in_threadpool(self._repo.get_station, station_code)
+        if station is None:
+            raise StationNotFoundError(station_code)
+        available = await run_in_threadpool(self._available_sensors, station.id)
+        return {"groups": catalog_for(available), "periods": PERIOD_HELP}
+
+    def _available_sensors(self, station_id: int) -> set[str] | None:
+        """Claves de los sensores habilitados; None si la estación no los tiene registrados (no se filtra)."""
+        codes = self._repo.station_sensor_codes(station_id)
+        keys = {s.key for s in SENSORS.values() if s.db_code in codes}
+        return keys or None
 
     async def station_exists(self, station_code: str) -> bool:
         return await run_in_threadpool(self._repo.get_station, station_code) is not None
@@ -431,11 +544,51 @@ def _query_context(executions: list[ToolExecution]) -> QueryContext | None:
 
 
 def _missing_alerts_note(answer: str, executions: list[ToolExecution]) -> str:
-    """Alertas de la palta que la respuesta no comunicó (texto a añadir, una viñeta por alerta)."""
+    """Alertas de la palta que la respuesta no comunicó (texto a añadir, una viñeta por alerta).
+
+    Una alerta se da por comunicada si la respuesta nombra su riesgo ("muy alcalino", "calor extremo"…);
+    mencionar solo el valor medido no basta.
+    """
     alerts = list(dict.fromkeys(a for e in executions for a in e.output.get("alertas_palta", [])))
-    if not alerts or _RECOMMENDATION_MENTIONED.search(answer):
+    low = normalize_text(answer)
+
+    def mentioned(alert: str) -> bool:
+        keys = [k for k in _ALERT_KEYS if k in normalize_text(alert)]
+        return bool(keys) and any(k in low for k in keys)
+
+    missing = [a for a in alerts if not mentioned(a)]
+    return "\n\n" + "\n".join(f"• {a}" for a in missing) if missing else ""
+
+
+def _missing_trend_note(question: str, answer: str, executions: list[ToolExecution]) -> str:
+    """Si preguntan cómo cambió un valor y la respuesta no describe la tendencia, se agrega la calculada."""
+    if not _TREND_QUESTION.search(normalize_text(question)) or _TREND_MENTIONED.search(normalize_text(answer)):
         return ""
-    return "\n\n" + "\n".join(f"• {a}" for a in alerts)
+    trends = [
+        f"Tendencia de {e.output['sensor'][0].lower() + e.output['sensor'][1:] if not e.output['sensor'].startswith('pH') else e.output['sensor']}: {e.output['tendencia']}."
+        for e in executions
+        if e.name == STATS and e.output.get("tendencia")
+    ]
+    return "\n\n" + "\n".join(trends) if trends else ""
+
+
+def _clean_model_answer(text: str) -> str:
+    """Sin presentación ("Soy AgriSense…") delante de la respuesta y sin oraciones que digan qué hacer."""
+    if (intro := _SELF_INTRO.match(text)) and text[intro.end():].strip():
+        text = text[intro.end():].lstrip()
+    return _without_recommendations(text)
+
+
+def _without_recommendations(text: str) -> str:
+    """Quita las oraciones (o viñetas) que dicen qué hacer; el resto de la respuesta se conserva."""
+    kept_lines = []
+    for line in text.split("\n"):
+        sentences = re.split(r"(?<=[.!?])\s+", line)
+        kept = [s for s in sentences if not _RECOMMENDATION.search(s)]
+        if kept != sentences and not "".join(kept).strip(" •-"):
+            continue  # la línea entera era una recomendación
+        kept_lines.append(" ".join(kept))
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(kept_lines)).strip()
 
 
 def _missing_quality_note(answer: str, executions: list[ToolExecution]) -> str:

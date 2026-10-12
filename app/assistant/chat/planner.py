@@ -97,6 +97,41 @@ _ADVICE = re.compile(
     r"|estado del (?:cultivo|campo|huerto|fundo)|demanda (?:hidrica|de agua)|\bdpv\b|\bvpd\b|deficit de presion"
     r"|evapotranspir"
 )
+# Pide qué hacer ("¿debo regar?", "¿qué fertilizante aplico?", "¿cómo controlo la antracnosis?"). AgriSense no
+# da recomendaciones: se responde con los datos de la estación, armados por código, y un aviso.
+_ASKS_ADVICE = re.compile(
+    r"recomiend|recomendacion|consej|sugier|sugerencia|\bdebo\b|deberia|conviene|es buen momento|que hago"
+    r"|que (?:debo |puedo )?hacer|que (?:fertilizante|abono|producto|fungicida|insecticida|dosis)"
+    r"|como (?:controlo|combato|elimino|trato|curo|prevengo|evito|mejoro|corrijo|bajo|subo|riego|fertilizo|podo)"
+    r"|cuanto (?:riego|regar|agua|fertilizante|abono)|cuando (?:riego|regar|fertilizo|abono|podo|cosecho|aplico)"
+)
+
+
+_UNMEASURED_NAMES = [
+    (re.compile(r"llov|lluvia|precipitac|granizo"), "lluvia"),
+    (re.compile(r"viento"), "viento"),
+    (re.compile(r"radiacion|\bsolar\b|nubosidad"), "radiación solar"),
+    (re.compile(r"humedad foliar"), "humedad foliar"),
+]
+
+
+def unmeasured_variable(question: str) -> str | None:
+    """"¿Cuánto llovió ayer?" → "lluvia": variable sin sensor en la estación (y sin otro sensor nombrado)."""
+    text = normalize_text(question)
+    if detect_sensors(text):
+        return None
+    return next((name for pattern, name in _UNMEASURED_NAMES if pattern.search(text)), None)
+
+
+def asks_other_station(question: str) -> bool:
+    """"¿Temperatura de la EST001?", "datos de todas las estaciones": fuera del alcance de este chat."""
+    return bool(_OTHER_STATION.search(normalize_text(question)))
+
+
+def asks_for_advice(question: str) -> bool:
+    return bool(_ASKS_ADVICE.search(normalize_text(question)))
+
+
 _CLIMATE = re.compile(r"\bclima\b|\btiempo\b|condiciones|\bsensores\b|todos los (?:datos|valores)")
 # Otras estaciones: no se consulta nada por adelantado; el modelo explica su alcance.
 _OTHER_STATION = re.compile(r"\best\d{3}|todas las estaciones|otras? estacion|demas estaciones")
@@ -115,6 +150,27 @@ _DOMAIN = re.compile(
 _STAT_WORDS = re.compile(r"promedio|\bmedia\b|maxim|minim|mas alt|mas baj|tendencia|reporte|resumen|variacion|\bpico\b")
 _GREETING = re.compile(r"^\W*(?:hola|buen[oa]s|gracias|muchas gracias|ok|okey|vale|chau|adios|hasta luego|hey)\b")
 _WORDS = re.compile(r"[a-z0-9]+")
+
+
+# Mensajes que son SOLO cortesía (sin pregunta): se responden con un texto fijo, sin el modelo.
+_SMALL_TALK = {
+    "greeting": re.compile(
+        r"^(?:hola|holi|alo|hey|saludos|buen dia|buenos dias|buenas tardes|buenas noches|buenas|que tal)"
+        r"(?: (?:agrisense|asistente|amigo|que tal|como estas|como esta))*$"
+        r"|^(?:hola )?(?:quien eres|que eres|como te llamas|presentate)(?: tu)?$"
+        # "¿eres un ingeniero agrónomo?", "¿eres una persona?", "¿eres un robot?"
+        r"|^(?:y )?(?:tu )?eres (?:un |una )?(?:ingeniero|agronomo|persona|humano|robot|bot|ia|asistente|"
+        r"inteligencia artificial)\b.*$"
+    ),
+    "thanks": re.compile(r"^(?:ok |okey |listo |perfecto |muy bien )?(?:muchas |mil )?gracias(?: agrisense)?$"),
+    "farewell": re.compile(r"^(?:chau|chao|adios|hasta luego|hasta pronto|nos vemos|bye)(?: agrisense)?$"),
+}
+
+
+def small_talk_kind(question: str) -> str | None:
+    """"greeting", "thanks" o "farewell" si el mensaje es solo cortesía; None si trae una consulta."""
+    text = " ".join(_WORDS.findall(normalize_text(question)))
+    return next((kind for kind, pattern in _SMALL_TALK.items() if pattern.match(text)), None)
 
 
 def is_out_of_scope(question: str, context: QueryContext | None) -> bool:
@@ -199,10 +255,10 @@ def plan_tool_calls(question: str, context: QueryContext | None, today: date) ->
         period = period or (_period_from_context(context) if context and context.fecha_inicio else {"periodo": "este_mes"})
         sensor = {"sensor": sensors[0]} if len(sensors) == 1 else {}
         return [PlannedCall(COUNT, {**period, **sensor})]
-    if _KNOWLEDGE.search(text) and period is None and not _CURRENT.search(text):
+    if _KNOWLEDGE.search(text) and period is None and not _CURRENT.search(text) and not _ASKS_ADVICE.search(text):
         return []  # el modelo responde con las referencias de palta Hass (y consulta datos si lo necesita)
     wants_stats = bool(_STAT.search(text))
-    wants_advice = bool(_ADVICE.search(text))
+    wants_advice = bool(_ADVICE.search(text) or _ASKS_ADVICE.search(text))
     wants_current = bool(_CURRENT.search(text)) and period is None
 
     if sensors:

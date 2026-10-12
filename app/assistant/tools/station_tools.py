@@ -173,8 +173,8 @@ def build_tool_definitions(year: int) -> list[dict[str, Any]]:
                 "description": (
                     "Diagnóstico agronómico del cultivo de palta con los 6 sensores en un periodo: resumen de "
                     "cada sensor, evaluación frente a los rangos de la palta Hass, riesgos (calor, frío, hongos, "
-                    "Phytophthora, pH) y etapa fenológica. Úsala para '¿cómo están mis paltas?', recomendaciones, "
-                    "riego, fertilización, plagas o enfermedades, o '¿cómo estuvo el clima?' en un periodo."
+                    "Phytophthora, pH) y etapa fenológica. Úsala para '¿cómo están mis paltas?', riesgos, "
+                    "plagas o enfermedades, o '¿cómo estuvo el clima?' en un periodo (solo informa, no recomienda)."
                 ),
                 "parameters": {
                     "type": "object",
@@ -438,10 +438,13 @@ class StationToolbox:
                 lines.append(f"{sensor.label}: sin datos")
                 continue
             summaries[sensor.key] = _summary(stats, sensor)
+            # Legible para el usuario (los comandos /hoy, /semana… la muestran tal cual).
+            unit = "" if sensor.unit == "pH" else f" {sensor.unit}"
+            short = lambda ts: datetime.fromtimestamp(ts, self._tz).strftime("%d/%m %H:%M")  # noqa: E731
             lines.append(
-                f"{sensor.label}: prom {_round(stats.avg, sensor)} {sensor.unit}, "
-                f"min {_round(stats.min_value, sensor)} ({self._fmt(stats.min_ts)}), "
-                f"max {_round(stats.max_value, sensor)} ({self._fmt(stats.max_ts)})"
+                f"{sensor.label}: promedio {_round(stats.avg, sensor)}{unit}, "
+                f"mínimo {_round(stats.min_value, sensor)}{unit} ({short(stats.min_ts)}), "
+                f"máximo {_round(stats.max_value, sensor)}{unit} ({short(stats.max_ts)})"
             )
             evaluation += evaluate_sensor(sensor.key, summaries[sensor.key])
 
@@ -599,11 +602,11 @@ def _summary(stats: SensorStats, sensor: Sensor) -> Summary:
 
 
 def _silence_note(last: datetime, now: datetime) -> str:
-    """': la estación no envía datos desde hace 12 días (conviene revisar…)'; vacío si es reciente."""
+    """': la estación no envía datos desde hace 12 días'; vacío si es reciente."""
     days = (now.date() - last.date()).days
     if days < 2:
         return ""
-    return f": la estación no envía datos desde hace {days} días (conviene revisar su energía y conexión)"
+    return f": la estación no envía datos desde hace {days} días"
 
 
 def _trend(start: float, end: float, sensor: Sensor, basis: str) -> str:
@@ -617,7 +620,11 @@ def _trend(start: float, end: float, sensor: Sensor, basis: str) -> str:
 
 def _quality_warnings(sensor: Sensor, stats: SensorStats, prefix: str = "") -> list[str]:
     warnings = []
-    if stats.discarded:
+    if stats.discarded == 1:
+        warnings.append(
+            f"{prefix}Se descartó 1 lectura con un valor imposible (falla del sensor); no se incluye en los cálculos."
+        )
+    elif stats.discarded:
         warnings.append(
             f"{prefix}Se descartaron {stats.discarded} lecturas con valores imposibles (falla del sensor); "
             "no se incluyen en los cálculos."

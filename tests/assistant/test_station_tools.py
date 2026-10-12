@@ -243,16 +243,16 @@ def test_stale_latest_readings_are_not_presented_as_current():
     answer = result["respuesta_directa"]
     assert answer.startswith(
         "No hay reporte de hoy (25 de setiembre de 2026) en ESTACIÓN 2: la estación no envía datos desde hace "
-        "7 días (conviene revisar su energía y conexión). El último registro disponible es del "
+        "7 días. El último registro disponible es del "
         "18 de setiembre de 2026 a las 13:56: temperatura ambiente 31.9 °C, humedad ambiente 53.7 %, "
         "presión atmosférica 1002.1 hPa, temperatura del suelo 32.5 °C, humedad del suelo 21.8 %, pH del suelo 7.7."
     )
     # Solo alertas serias (calculadas por código): 31.9 °C, 32.5 °C en el suelo y pH 7.7; 21.8 % es normal
     assert answer.endswith(
         "\n\nAlertas para la palta:\n"
-        "• Temperatura de 31.9 °C: sobre 30 °C, estrés por calor. Recomendación: no dejar secar el suelo en las horas de calor.\n"
-        "• Temperatura de 32.5 °C en el suelo: sobre 30 °C, estrés de raíces. Recomendación: cobertura orgánica (mulch) sobre el suelo.\n"
-        "• pH de 7.7: muy alcalino (óptimo 5.5–6.5), causa clorosis por falta de hierro y zinc. Recomendación: acidificar el agua de riego y aplicar quelatos de hierro."
+        "• Temperatura de 31.9 °C: sobre 30 °C, estrés por calor.\n"
+        "• Temperatura de 32.5 °C en el suelo: sobre 30 °C, estrés de raíces.\n"
+        "• pH de 7.7: muy alcalino (óptimo 5.5–6.5), puede causar clorosis por falta de hierro y zinc."
     )
 
 

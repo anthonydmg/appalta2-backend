@@ -42,7 +42,7 @@ async def test_tool_flow_executes_against_requested_station(repo):
 
 async def test_system_prompt_is_bound_to_station(repo):
     llm = ScriptedLLM([LLMChunk(text="Solo puedo informar sobre ESTACIÓN 1.")])
-    await make_service(llm, repo).ask("EST001-PALTAS", "hola", "u", "s")
+    await make_service(llm, repo).ask("EST001-PALTAS", "¿Qué datos tiene la estación?", "u", "s")
     system = llm.requests[0]["messages"][0]["content"]
     assert "ESTACIÓN 1" in system and "2026-09-25 15:30" in system
 
@@ -163,12 +163,41 @@ async def test_direct_answer_skips_second_model_call():
     assert llm.requests == []  # consulta planificada y respuesta directa: el modelo no se llama
 
 
-async def test_advice_question_gets_diagnosis_before_the_model(repo):
-    llm = ScriptedLLM([LLMChunk(text="Sí, conviene regar: la humedad del suelo promedio fue 24.5 %.")])
-    result = await make_service(llm, repo).ask("EST001-PALTAS", "¿Debo regar hoy?", "u", "s")
+@pytest.mark.parametrize("question", ["¿Debo regar hoy?", "¿Qué fertilizante debo aplicar a mis paltos?",
+                                      "¿Cómo controlo la antracnosis?", "¿Qué me recomiendas?"])
+async def test_advice_question_gets_data_and_no_recommendation(repo, question):
+    llm = ScriptedLLM([])
+    result = await make_service(llm, repo).ask("EST001-PALTAS", question, "u", "s")
     assert [t.name for t in result.tools] == ["diagnostico_palta"]
-    assert result.answer.startswith("Sí, conviene regar")
-    # El modelo recibe el diagnóstico ya consultado y el rol de experto
-    first = llm.requests[0]["messages"]
-    assert "experto en palta Hass" in first[0]["content"]
-    assert first[-1]["role"] == "tool" and "alertas_palta" in first[-1]["content"]
+    assert result.answer.startswith("AgriSense no da recomendaciones; solo informa los datos de la estación")
+    assert "Resumen de ESTACIÓN 1" in result.answer
+    assert llm.requests == []  # respuesta armada por código: el modelo no puede recomendar
+
+
+@pytest.mark.parametrize("greeting", ["Hola", "buenos días", "Buenas tardes AgriSense", "¿Quién eres?", "¿Eres un ingeniero agrónomo?"])
+async def test_greeting_presents_agrisense_without_the_model(repo, greeting):
+    llm = ScriptedLLM([])
+    result = await make_service(llm, repo).ask("EST002-PALTAS", greeting, "u", "s")
+    assert result.answer.startswith("Hola, soy AgriSense, tu asistente de paltas. Puedo consultar los datos de ESTACIÓN 2")
+    assert "ingeniero" not in result.answer.lower()
+    assert llm.requests == [] and result.tools == []
+
+
+async def test_thanks_and_farewell(repo):
+    service = make_service(ScriptedLLM([]), repo)
+    assert (await service.ask("EST002-PALTAS", "muchas gracias!", "u", "s")).answer.startswith("¡De nada!")
+    assert (await service.ask("EST002-PALTAS", "chau", "u", "s")).answer.startswith("¡Hasta luego!")
+
+
+async def test_greeting_with_a_question_still_queries_data(repo):
+    llm = ScriptedLLM([LLMChunk(text="El pH del suelo de ayer fue 6.12.")])
+    result = await make_service(llm, repo).ask("EST002-PALTAS", "hola, cual es el ph de ayer", "u", "s")
+    assert result.tools[0].arguments["sensor"] == "ph_suelo"
+
+
+async def test_system_prompt_never_presents_as_engineer(repo):
+    llm = ScriptedLLM([LLMChunk(text="Solo asesoro sobre la palta.")])
+    await make_service(llm, repo).ask("EST002-PALTAS", "¿Qué datos tiene la estación?", "u", "s")
+    system = llm.requests[0]["messages"][0]["content"]
+    assert system.startswith("Eres AgriSense, el asistente de paltas")
+    assert "Nunca digas que eres ingeniero agrónomo" in system and "No te presentes" in system

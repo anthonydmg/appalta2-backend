@@ -12,7 +12,7 @@ from jose import JWTError, jwt
 from sqlalchemy import text
 from starlette.concurrency import run_in_threadpool
 
-from app.assistant.api.schemas import ChatRequest, ChatResponse, HealthResponse
+from app.assistant.api.schemas import ChatRequest, ChatResponse, CommandsResponse, HealthResponse
 from app.assistant.chat.prompts import OUT_OF_SERVICE_MESSAGE
 from app.assistant.chat.service import ChatResult, ChatService, StationNotFoundError
 from app.assistant.container import get_container, shutdown_container
@@ -120,6 +120,19 @@ async def chat_stream(
     )
 
 
+@router.get("/chat/{station_code}/commands", response_model=CommandsResponse)
+async def chat_commands(
+    station_code: str = StationCode,
+    user: str = Depends(get_current_user),
+    service: ChatService = Depends(get_chat_service),
+) -> CommandsResponse:
+    """Lista de consultas rápidas ("/ahora", "/temp-suelo ayer"…) para el panel de la app."""
+    try:
+        return CommandsResponse(**await service.commands_for(station_code))
+    except StationNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Estación no encontrada")
+
+
 @router.delete("/chat/{station_code}/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def reset_session(
     session_id: str,
@@ -162,6 +175,7 @@ def _to_response(result: ChatResult) -> ChatResponse:
         session_id=result.session_id,
         tools=[asdict(t) for t in result.tools],
         duration_ms=result.duration_ms,
+        quick_replies=result.quick_replies,
     )
 
 

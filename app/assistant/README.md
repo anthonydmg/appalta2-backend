@@ -1,9 +1,11 @@
 # Módulo Asistente IA (`app/assistant`)
 
-Chat conversacional por estación con rol de **ingeniero agrónomo experto en palta Hass**.
-Responde con las mediciones reales de los 6 sensores de la estación consultada y las
-interpreta para el cultivo (riesgos y recomendaciones), con lenguaje sencillo para
-agricultores o técnico para ingenieros agrónomos.
+Chat conversacional por estación: **AgriSense, el asistente de paltas** (conoce el cultivo de
+palta Hass). Responde con las mediciones reales de los 6 sensores de la estación consultada y
+explica qué significan para el cultivo (riesgos), con lenguaje sencillo para agricultores o
+técnico para ingenieros agrónomos. **Nunca da recomendaciones**: si le piden un consejo
+("¿debo regar?", "¿qué fertilizante aplico?") lo aclara y muestra los datos de la estación;
+si el modelo escribiera una recomendación, el código la quita antes de mostrar la respuesta.
 Es un módulo autocontenido del monolito: se registra con dos líneas en
 `app/main.py` y no modifica ninguna otra parte de la API.
 
@@ -33,14 +35,14 @@ Periodos: `hoy`, `ayer`, `ultimas_24_horas`, `ultimos_7_dias`, `ultimos_30_dias`
 ("septiembre", "del 10 al 18", "mes pasado", "última semana") las interpreta
 `domain/dates.py` y tienen prioridad sobre las que complete el modelo.
 
-## Asesoría experta en palta Hass
+## Alertas para la palta Hass (solo informan)
 
 `domain/avocado.py` evalúa **por código** cada resultado frente a los rangos de la palta
-Hass. Solo cuando un valor está en exceso se entrega al modelo como `alertas_palta`, con
-una recomendación breve; con valores normales no hay recomendación y la respuesta es solo
-el dato:
+Hass. Solo cuando un valor está en exceso se entrega como `alertas_palta`: qué valor salió de
+lo normal y qué riesgo implica, sin decir qué hacer. Con valores normales no hay alerta y la
+respuesta es solo el dato:
 
-| Sensor | Referencia | Alerta (con recomendación) |
+| Sensor | Referencia | Alerta (informativa) |
 |---|---|---|
 | Temperatura ambiente | óptimo 20–25 °C | > 30 °C estrés por calor; ≥ 35 °C calor extremo; ≤ 2 °C helada |
 | Humedad ambiente | 60–80 % | > 85 % promedio (hongos) |

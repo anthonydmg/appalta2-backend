@@ -13,7 +13,7 @@ Cada caso de `cases.json` puede verificar:
 - expect_no_tool: no debe consultar herramientas.
 - forbid_text: textos que NO deben aparecer (p. ej. "-127" o datos de otra estación).
 
-Además, en TODOS los casos, cada medición de la respuesta (número + °C, %, hPa o pH)
+Además, en TODOS los casos, la respuesta no puede incluir recomendaciones, y cada medición de la respuesta (número + °C, %, hPa o pH)
 debe existir en los datos que devolvieron las herramientas: si no, es un valor inventado.
 
 Por defecto se evalúa con la hora real (como en producción); --now simula otra hora.
@@ -40,6 +40,7 @@ from zoneinfo import ZoneInfo
 
 from app.assistant.chat.grounding import find_unsupported_values
 from app.assistant.domain.avocado import REFERENCE_TEXT
+from app.assistant.chat.service import _RECOMMENDATION
 from app.assistant.config import get_settings
 from app.assistant.domain.periods import Period, PeriodError, resolve_period
 from app.assistant.tools.station_tools import StatsArgs, effective_range
@@ -143,6 +144,10 @@ def check(case: dict, result, now: datetime | None = None) -> list[str]:
     # Las referencias de palta Hass ("óptimo 20–40 %") son válidas, igual que en el servicio.
     if unsupported := find_unsupported_values(answer, [t.output for t in result.tools] + [REFERENCE_TEXT]):
         failures.append(f"valores inventados (no están en los datos): {unsupported}")
+
+    # En TODOS los casos: AgriSense nunca da recomendaciones.
+    if _RECOMMENDATION.search(answer):
+        failures.append(f"da una recomendación: «{_RECOMMENDATION.search(answer).group(0)}»")
 
     for text in case.get("forbid_text", []):
         if text.lower() in low:

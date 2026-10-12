@@ -80,3 +80,20 @@ def test_stream_sse(client):
         body = "".join(resp.iter_text())
     assert resp.status_code == 200
     assert "event: tool" in body and "event: delta" in body and "event: done" in body
+
+
+def test_commands_catalog_route(client):
+    assert client.get(f"{URL}/commands").status_code == 401  # requiere token, como el chat
+    resp = client.get(f"{URL}/commands", headers=backend_token())
+    assert resp.status_code == 200
+    body = resp.json()
+    first = body["groups"][0]
+    assert first["title"] == "Clima ahora" and first["commands"][0]["command"] == "/ahora"
+    assert set(first["commands"][0]) == {"command", "usage", "description", "example", "insert"}
+    assert "Periodos" in body["periods"]
+    assert client.get("/api/v1/chat/NOPE/commands", headers=backend_token()).status_code == 404
+
+
+def test_chat_response_includes_quick_replies(client):
+    body = client.post(URL, json={"question": "/temp ayer"}, headers=backend_token()).json()
+    assert body["quick_replies"] == ["Aire (ambiente)", "Suelo", "Ambas"]

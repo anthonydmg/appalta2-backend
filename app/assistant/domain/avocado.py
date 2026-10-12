@@ -58,10 +58,10 @@ def _fmt(value: float) -> str:
 
 
 def evaluate_sensor(sensor_key: str, s: Summary, single_reading: bool = False) -> list[str]:
-    """Alertas serias de un sensor, cada una con una recomendación breve.
+    """Alertas serias de un sensor: qué valor salió de lo normal para la palta Hass y qué riesgo implica.
 
-    Solo se alerta cuando el valor sale claramente de lo normal para la palta Hass
-    (p. ej. temperatura sobre 30 °C); en condiciones normales no se recomienda nada.
+    Solo informan (el asistente no da recomendaciones). Se alerta únicamente cuando el valor sale
+    claramente de lo normal (p. ej. temperatura sobre 30 °C); en condiciones normales, nada.
     """
     fn = _EVALUATORS.get(sensor_key)
     return fn(s, single_reading) if fn else []
@@ -73,18 +73,15 @@ def _air_temperature(s: Summary, single: bool) -> list[str]:
     what_min = "Temperatura de" if single else "Mínima de"
     if s.max_value >= 35:
         out.append(
-            f"{what_max} {_fmt(s.max_value)} °C: calor extremo (sobre 35 °C), riesgo de caída de flores y frutos. "
-            "Recomendación: regar en horas frescas sin encharcar."
+            f"{what_max} {_fmt(s.max_value)} °C: calor extremo (sobre 35 °C), riesgo de caída de flores y frutos."
         )
     elif s.max_value > 30:
         out.append(
-            f"{what_max} {_fmt(s.max_value)} °C: sobre 30 °C, estrés por calor. "
-            "Recomendación: no dejar secar el suelo en las horas de calor."
+            f"{what_max} {_fmt(s.max_value)} °C: sobre 30 °C, estrés por calor."
         )
     if s.min_value <= 2:
         out.append(
-            f"{what_min} {_fmt(s.min_value)} °C: riesgo de helada. Recomendación: regar antes de la noche fría y "
-            "proteger plantones."
+            f"{what_min} {_fmt(s.min_value)} °C: riesgo de helada."
         )
     return out
 
@@ -93,8 +90,7 @@ def _air_humidity(s: Summary, single: bool) -> list[str]:
     if s.avg > 85:
         what = "Humedad de" if single else "Promedio de"
         return [
-            f"{what} {_fmt(s.avg)} %: humedad muy alta (sobre 85 %), favorece hongos como antracnosis. "
-            "Recomendación: podas de aireación y vigilar manchas en hojas y frutos."
+            f"{what} {_fmt(s.avg)} %: humedad muy alta (sobre 85 %), favorece hongos como antracnosis."
         ]
     return []
 
@@ -103,8 +99,7 @@ def _soil_temperature(s: Summary, single: bool) -> list[str]:
     if s.max_value > 30:
         what = "Temperatura de" if single else "Máxima de"
         return [
-            f"{what} {_fmt(s.max_value)} °C en el suelo: sobre 30 °C, estrés de raíces. "
-            "Recomendación: cobertura orgánica (mulch) sobre el suelo."
+            f"{what} {_fmt(s.max_value)} °C en el suelo: sobre 30 °C, estrés de raíces."
         ]
     return []
 
@@ -113,13 +108,11 @@ def _soil_moisture(s: Summary, single: bool) -> list[str]:
     what = "Humedad del suelo de" if single else "Promedio de"
     if s.avg < 20:
         return [
-            f"{what} {_fmt(s.avg)} %: suelo seco (bajo 20 %), riesgo de estrés hídrico. "
-            "Recomendación: revisar el riego y confirmar en campo."
+            f"{what} {_fmt(s.avg)} %: suelo seco (bajo 20 %), riesgo de estrés hídrico."
         ]
     if s.avg > 50:
         return [
-            f"{what} {_fmt(s.avg)} %: suelo encharcado (sobre 50 %), riesgo de Phytophthora. "
-            "Recomendación: espaciar riegos y revisar el drenaje."
+            f"{what} {_fmt(s.avg)} %: suelo encharcado (sobre 50 %), riesgo de Phytophthora."
         ]
     return []
 
@@ -128,12 +121,11 @@ def _soil_ph(s: Summary, single: bool) -> list[str]:
     what = "pH de" if single else "pH promedio de"
     if s.avg > 7.5:
         return [
-            f"{what} {_fmt(s.avg)}: muy alcalino (óptimo 5.5–6.5), causa clorosis por falta de hierro y zinc. "
-            "Recomendación: acidificar el agua de riego y aplicar quelatos de hierro."
+            f"{what} {_fmt(s.avg)}: muy alcalino (óptimo 5.5–6.5), puede causar clorosis por falta de hierro y zinc."
         ]
     if s.avg < 5.0:
         return [
-            f"{what} {_fmt(s.avg)}: suelo ácido (bajo 5.0). Recomendación: encalado según análisis de suelo."
+            f"{what} {_fmt(s.avg)}: suelo ácido (bajo 5.0)."
         ]
     return []
 
@@ -175,7 +167,6 @@ def evaluate_combined(summaries: dict[str, Summary]) -> list[str]:
     _, peak = _vpd(air_t, air_h)
     if peak > 2.0 or (air_t.max_value > 30 and air_h.min_value < 50):
         return [
-            f"Calor con aire seco (DPV máximo aprox. {peak:.2f} kPa): alta demanda de agua y riesgo de caída de "
-            "frutos. Recomendación: priorizar el riego antes del mediodía."
+            f"Calor con aire seco (DPV máximo aprox. {peak:.2f} kPa): alta demanda de agua y riesgo de caída de frutos."
         ]
     return []

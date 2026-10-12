@@ -35,6 +35,26 @@ class ChatResponse(BaseModel):
     session_id: str
     tools: list[ToolUsage]
     duration_ms: int
+    # Respuestas sugeridas para mostrar como botones (p. ej. tras "¿aire o suelo?")
+    quick_replies: list[str] = []
+
+
+class CommandInfo(BaseModel):
+    command: str          # "/temp-aire"
+    usage: str            # "/temp-aire [periodo]"
+    description: str
+    example: str          # "/temp-aire ayer"
+    insert: str           # texto que la app copia al campo al tocar el comando
+
+
+class CommandGroup(BaseModel):
+    title: str
+    commands: list[CommandInfo]
+
+
+class CommandsResponse(BaseModel):
+    groups: list[CommandGroup]
+    periods: str          # cómo indicar el periodo
 
 
 class HealthResponse(BaseModel):

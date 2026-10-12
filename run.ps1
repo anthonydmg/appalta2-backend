@@ -65,54 +65,11 @@ if (-not $envVars["DATABASE_URL"]) { Fail "DATABASE_URL no esta definida en .env
 
 # ---------------------------------------------------------------
 # 3. Base de datos (crear + migrar si no existe)
+#    Con Python (pg8000) y no con psql: Windows Smart App Control bloquea psql.exe.
 # ---------------------------------------------------------------
 if (-not $SkipDb) {
-    # postgresql+psycopg2://user:pass@host:port/dbname
-    $pattern = '^postgres(?:ql)?(?:\+\w+)?://([^:/@]+)(?::([^@]*))?@([^:/]+)(?::(\d+))?/([^?]+)'
-    if ($envVars["DATABASE_URL"] -notmatch $pattern) { Fail "No se pudo interpretar DATABASE_URL." }
-    $dbUser = [uri]::UnescapeDataString($Matches[1])
-    $dbPass = [uri]::UnescapeDataString($Matches[2])
-    $dbHost = $Matches[3]
-    $dbPort = if ($Matches[4]) { $Matches[4] } else { "5432" }
-    $dbName = $Matches[5]
-
-    $psql = (Get-Command psql -ErrorAction SilentlyContinue).Source
-    if (-not $psql) {
-        $psql = Get-ChildItem "C:\Program Files\PostgreSQL\*\bin\psql.exe" -ErrorAction SilentlyContinue |
-            Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
-    }
-
-    if (-not $psql) {
-        Write-Host "AVISO: psql no encontrado; se omite la verificacion de la base de datos." -ForegroundColor Yellow
-    }
-    else {
-        $env:PGPASSWORD = $dbPass
-        $env:PGCLIENTENCODING = "UTF8"
-        $connArgs = @("-h", $dbHost, "-p", $dbPort, "-U", $dbUser)
-
-        Write-Step "Verificando PostgreSQL en ${dbHost}:${dbPort}"
-        $exists = & $psql @connArgs -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname = '$dbName'"
-        if ($LASTEXITCODE -ne 0) {
-            Fail "No se pudo conectar a PostgreSQL. Revisa que el servicio este activo y el usuario/clave de DATABASE_URL."
-        }
-
-        if ($exists -ne "1") {
-            Write-Step "Creando base de datos '$dbName'"
-            & $psql @connArgs -d postgres -v ON_ERROR_STOP=1 -qc "CREATE DATABASE `"$dbName`" ENCODING 'UTF8' TEMPLATE template0"
-            if ($LASTEXITCODE -ne 0) { Fail "No se pudo crear la base de datos." }
-
-            Get-ChildItem "sql\*.sql" | Sort-Object Name | ForEach-Object {
-                Write-Step "Ejecutando $($_.Name)"
-                & $psql @connArgs -d $dbName -v ON_ERROR_STOP=1 -q -1 -f $_.FullName
-                if ($LASTEXITCODE -ne 0) { Fail "Fallo el script $($_.Name)." }
-            }
-        }
-        else {
-            Write-Host "    Base de datos '$dbName' ya existe." -ForegroundColor DarkGray
-        }
-
-        Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
-    }
+    & $venvPython -m scripts.setup_db
+    if ($LASTEXITCODE -ne 0) { Fail "No se pudo verificar o preparar la base de datos (ver mensaje anterior)." }
 }
 
 # ---------------------------------------------------------------

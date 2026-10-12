@@ -31,6 +31,7 @@ class FakeRepository:
         un pH en exceso para probar las alertas."""
         self.has_data = has_data
         self.alkaline_ph = alkaline_ph
+        self.sensor_codes: set[str] | None = None  # None = los 6 sensores habilitados
         self.discarded = discarded
         self.zeros = zeros
         self.latest_value = latest_value
@@ -79,6 +80,12 @@ class FakeRepository:
     def count_measurements(self, station_id, start_ts, end_ts):
         self.calls.append(("count_measurements", station_id))
         return 10 if self.has_data else 0
+
+    def station_sensor_codes(self, station_id):
+        return set(self.sensor_codes) if self.sensor_codes is not None else {
+            "ambient_temperature", "ambient_humidity", "atmospheric_pressure",
+            "soil_temperature", "soil_moisture", "soil_ph",
+        }  # fmt: skip
 
 
 class ScriptedLLM:
