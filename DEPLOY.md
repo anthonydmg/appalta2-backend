@@ -1,6 +1,6 @@
 # Appalta2 — Documentación del sistema y despliegue a producción
 
-> Desarrollado por **[velardesoft](https://github.com/velardesoft)** · Licencia [MIT](LICENSE)
+> Desarrollado por el **equipo de [INICTEL-UNI](https://github.com/pdsiia-inictel-uni)** · Licencia [MIT](LICENSE)
 
 Este documento describe **qué hace el sistema**, **cómo se conectan sus piezas** (incluidos los
 sistemas externos) y **cómo desplegarlo y operarlo en producción**.
@@ -605,4 +605,4 @@ verificar que `app/src/main/assets/leaf_mt_damage_classifier.tflite` esté prese
 
 ---
 
-Desarrollado por **[velardesoft](https://github.com/velardesoft)**.
+Desarrollado por el **equipo de [INICTEL-UNI](https://github.com/pdsiia-inictel-uni)** — Instituto Nacional de Investigación y Capacitación de Telecomunicaciones, Universidad Nacional de Ingeniería.
