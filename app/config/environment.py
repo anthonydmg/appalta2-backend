@@ -21,6 +21,7 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 ENV_FILE = ROOT_DIR / ".env"
 
 _INSECURE_JWT_SECRET = "super-secret-key"  # clave histórica; solo se tolera en desarrollo
+PLACEHOLDER = "REEMPLAZAR"  # marca de los valores de .env.example que hay que completar
 
 # Nombres anteriores -> nombre actual. Se siguen aceptando para no romper servidores ya configurados.
 LEGACY_ENV_NAMES = {
@@ -45,6 +46,8 @@ class Settings(BaseSettings):
     app_env: Literal["development", "production"] = Field("development", validation_alias=_env("APP_ENV"))
     # URL pública del API sin "/v1" (con ella se arman los enlaces de los correos)
     public_api_url: str = Field("http://localhost:8000/api", validation_alias=_env("PUBLIC_API_URL"))
+    # Swagger (/docs) y OpenAPI: por defecto abiertos en desarrollo y cerrados en producción
+    api_docs_enabled: bool | None = Field(None, validation_alias=_env("API_DOCS_ENABLED"))
 
     # --- Base de datos ---
     database_url: str = Field(validation_alias=_env("DATABASE_URL"))
@@ -81,6 +84,19 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _check_secrets(self):
+        # Valores de la plantilla .env.example que no se reemplazaron
+        placeholders = sorted(
+            name.upper()
+            for name, value in self
+            if PLACEHOLDER in str(value.get_secret_value() if isinstance(value, SecretStr) else value)
+        )
+        if placeholders and (self.is_production or "DATABASE_URL" in placeholders):
+            raise ValueError(f"Reemplaza los valores de la plantilla en: {', '.join(placeholders)}")
+        if placeholders:
+            logger.warning("Variables sin configurar (aún con el valor de la plantilla): %s", ", ".join(placeholders))
+        if self.is_production and not self.public_api_url.startswith("https://"):
+            logger.warning("PUBLIC_API_URL no usa https:// en producción: los enlaces de los correos apuntan a %s",
+                           self.public_api_url)
         if not self.mail_from:
             self.mail_from = self.mail_username
         secret = self.jwt_secret_key.get_secret_value().strip()
@@ -97,6 +113,10 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         return self.app_env == "production"
 
+    @property
+    def docs_enabled(self) -> bool:
+        return self.api_docs_enabled if self.api_docs_enabled is not None else not self.is_production
+
 
 def _warn_legacy_names() -> None:
     defined = set(os.environ) | set(dotenv_values(ENV_FILE) if ENV_FILE.exists() else {})
@@ -109,6 +129,3 @@ def _warn_legacy_names() -> None:
 def get_settings() -> Settings:
     _warn_legacy_names()
     return Settings()
-
-
-settings = get_settings()

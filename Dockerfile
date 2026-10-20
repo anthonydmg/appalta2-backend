@@ -14,9 +14,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-# Código de la app y scripts del asistente (evaluación contra la BD de producción)
+# Código de la app, scripts (migraciones y evaluación del asistente) y migraciones SQL
 COPY app/ app/
 COPY scripts/ scripts/
+COPY sql/ sql/
 
 # Usuario sin privilegios
 RUN useradd --create-home --uid 10001 appuser && chown -R appuser /app

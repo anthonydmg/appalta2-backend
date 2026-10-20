@@ -1,17 +1,29 @@
-fastapi
-uvicorn
-sqlalchemy
-psycopg2-binary
-pg8000  # driver Python puro: alternativa en Windows con Smart App Control
-python-jose[cryptography]
-passlib[bcrypt]
-bcrypt==4.0.1
-pydantic[email]
-fastapi-mail
-jinja2  # plantillas HTML (páginas de verificación/reset y correos)
-python-dotenv
-sse-starlette
+# Versiones fijadas: las probadas con la suite de tests. Para actualizar, cambiar aquí,
+# reinstalar (pip install -r requirements-dev.txt) y correr pytest antes de desplegar.
+
+# API
+fastapi==0.141.1
+uvicorn==0.53.0
+sse-starlette==3.4.11
+jinja2==3.1.6           # páginas HTML (verificación/reset) y correos
+pydantic[email]==2.13.5
+email-validator==2.3.0
+pydantic-settings==2.15.0
+python-dotenv==1.2.3
+
+# Base de datos
+sqlalchemy==2.0.54
+psycopg2-binary==2.9.13
+pg8000==1.31.5          # driver Python puro: alternativa en Windows con Smart App Control
+
+# Autenticación
+python-jose[cryptography]==3.5.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1           # passlib 1.7 no es compatible con bcrypt >= 4.1
+
+# Correo
+fastapi-mail==1.6.8
+
 # Asistente IA (app/assistant)
-httpx
-pydantic-settings
-tzdata
+httpx==0.28.1
+tzdata==2026.4

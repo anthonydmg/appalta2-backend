@@ -1,9 +1,9 @@
-"""Lectura de variables de entorno (app/config/settings.py), sin depender del .env local."""
+"""Lectura de variables de entorno (app/config/environment.py), sin depender del .env local."""
 
 import pytest
 from pydantic import ValidationError
 
-from app.config.settings import Settings
+from app.config.environment import Settings
 
 STRONG_SECRET = "x" * 48
 BASE = {"DATABASE_URL": "postgresql+psycopg2://u:p@localhost/db"}
@@ -15,7 +15,7 @@ def isolated_env(monkeypatch):
     import os
 
     for name in list(os.environ):
-        if name.startswith(("APP_", "PUBLIC_", "DB_", "JWT_", "MAIL_", "BACKEND_URL", "SECRET_KEY", "USE_CREDENTIALS")):
+        if name.startswith(("APP_", "API_DOCS", "PUBLIC_", "DB_", "JWT_", "MAIL_", "BACKEND_URL", "SECRET_KEY", "USE_CREDENTIALS")):
             monkeypatch.delenv(name, raising=False)
     for name, value in BASE.items():
         monkeypatch.setenv(name, value)
@@ -81,3 +81,24 @@ def test_mail_from_defaults_to_username_and_postgres_url_is_fixed():
 def test_invalid_app_env_is_rejected():
     with pytest.raises(ValidationError):
         load(APP_ENV="staging")
+
+
+def test_template_placeholders_block_production_but_only_warn_in_development():
+    assert load(MAIL_PASSWORD="REEMPLAZAR_CONTRASENA").mail_password  # desarrollo: arranca con aviso
+    with pytest.raises(ValidationError, match="MAIL_PASSWORD"):
+        load(APP_ENV="production", JWT_SECRET_KEY=STRONG_SECRET, MAIL_PASSWORD="REEMPLAZAR_CONTRASENA")
+
+
+def test_database_placeholder_is_always_an_error():
+    with pytest.raises(ValidationError, match="DATABASE_URL"):
+        load(DATABASE_URL="postgresql+psycopg2://postgres:REEMPLAZAR_CLAVE@localhost/db")
+
+
+@pytest.mark.parametrize("env, flag, expected", [
+    ({}, None, True),
+    ({"APP_ENV": "production", "JWT_SECRET_KEY": STRONG_SECRET}, None, False),
+    ({"APP_ENV": "production", "JWT_SECRET_KEY": STRONG_SECRET}, "true", True),
+    ({}, "false", False),
+])
+def test_swagger_closed_in_production_unless_enabled(env, flag, expected):
+    assert load(**env, **({"API_DOCS_ENABLED": flag} if flag else {})).docs_enabled is expected

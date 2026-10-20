@@ -2,13 +2,13 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.config.settings import ENV_FILE
+from app.config.environment import ENV_FILE
 
 
 class AssistantSettings(BaseSettings):
     """Configuración del asistente, leída del mismo .env del backend (sección "Asistente IA").
 
-    DATABASE_URL y la clave JWT se reutilizan del backend (app.config.settings);
+    DATABASE_URL y la clave JWT se reutilizan del backend (app.config.environment);
     aquí solo va lo propio del asistente. Todo tiene valores por defecto, así que
     el .env no necesita cambios para desarrollo local.
     """
