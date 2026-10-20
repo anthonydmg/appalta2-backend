@@ -8,7 +8,6 @@ from typing import AsyncIterator, Optional
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
 from sqlalchemy import text
 from starlette.concurrency import run_in_threadpool
 
@@ -17,7 +16,7 @@ from app.assistant.chat.prompts import OUT_OF_SERVICE_MESSAGE
 from app.assistant.chat.service import ChatResult, ChatService, StationNotFoundError
 from app.assistant.container import get_container, shutdown_container
 from app.assistant.llm.base import LLMBusyError, LLMError
-from app.services.auth import ALGORITHM, SECRET_KEY
+from app.services.auth import ACCESS, decode_subject
 
 logger = logging.getLogger(__name__)
 
@@ -48,14 +47,8 @@ def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depen
         detail="Token inválido o expirado",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    if credentials is None:
-        raise unauthorized
-    try:
-        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
-    except JWTError:
-        raise unauthorized
-    subject = payload.get("sub")
-    if not subject:
+    subject = decode_subject(credentials.credentials, ACCESS) if credentials else None
+    if subject is None:
         raise unauthorized
     return subject
 

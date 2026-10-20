@@ -51,6 +51,20 @@ git pull
 docker compose --env-file .env.production up -d --build backend
 ```
 
+### Migraciones pendientes (aplicar ANTES de levantar la nueva versión)
+
+Los scripts de `sql/` nuevos no se ejecutan solos sobre una BD existente. Son idempotentes:
+
+| Script | Desde | Qué hace |
+|---|---|---|
+| `sql/007_users_session_security.sql` | gestión de usuarios | columna `users.password_changed_at` e índice `lower(email)` |
+
+```bash
+psql "$DATABASE_URL" -f sql/007_users_session_security.sql
+```
+
+Sin la 007, el login y el registro fallan con error 500 (la API consulta la columna nueva).
+
 Las conversaciones del chat en curso se reinician al actualizar (la memoria vive en el proceso).
 
 ## Operación

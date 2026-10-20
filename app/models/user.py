@@ -17,7 +17,6 @@ class User(Base):
     verification_token = Column(String, nullable=True)
     reset_password_token = Column(String, nullable=True)
     reset_password_token_expiry = Column(DateTime, nullable=True)
-    created_at = Column(
-    DateTime(timezone=True),
-    server_default=func.now(),
-    nullable=False)
+    # Último cambio de contraseña: los refresh tokens emitidos antes dejan de valer (sql/007)
+    password_changed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
