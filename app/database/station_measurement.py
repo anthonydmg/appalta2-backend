@@ -85,6 +85,8 @@ def save_measurement(
 
                 measurement_id=measurement.id,
 
+                station_id=station.id,
+
                 sensor_id=sensor_map[
                     sensor.sensor_code
                 ],

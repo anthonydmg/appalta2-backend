@@ -16,6 +16,7 @@ def save_events(
     data: StationMeasurementRequest
 ):
 
+    print("data.events:", data.events)
     if not data.events:
         return
 
@@ -33,8 +34,11 @@ def save_events(
 
                 event_type=event.event_type,
 
-                event_message=event.message
+                event_code=event.event_code if event.event_code is not None else event.message,
 
+                event_data=event.event_data,
+                
+                event_message=event.message
             )
 
         )

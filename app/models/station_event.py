@@ -42,6 +42,16 @@ class StationEvent(Base):
         nullable=False
     )
 
+    event_code = Column(
+            Text,
+            nullable=True
+    )
+
+    event_data =  Column(
+            Text,
+            nullable=True
+    )
+    
     event_message = Column(
         Text,
         nullable=True

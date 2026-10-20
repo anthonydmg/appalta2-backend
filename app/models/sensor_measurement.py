@@ -26,6 +26,12 @@ class SensorMeasurement(Base):
         nullable=False
     )
 
+    station_id=Column(
+        BigInteger,
+        ForeignKey("stations.id"),
+        nullable=True
+    )
+    
     sensor_id = Column(
         BigInteger,
         ForeignKey("sensors.id"),

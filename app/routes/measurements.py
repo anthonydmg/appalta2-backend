@@ -62,15 +62,18 @@ async def recive_data(
     
     print(f"station_code:{station_code}")
     #expected = API_KEYS.get(station_code)
+
+    print(data.timestamp)
+
     print("TIMESTAMP VERIFICADO")
  
     current_time = int(time.time())
 
-    if abs(current_time - data.timestamp) > MAX_DRIFT_SECONDS:
-        raise HTTPException(
-            status_code=401,
-            detail="Timestamp inválido o expirado"
-        )
+    #if abs(current_time - data.timestamp) > MAX_DRIFT_SECONDS:
+    #    raise HTTPException(
+    #         status_code=401,
+    #         detail="Timestamp inválido o expirado"
+    #     ) 
     
     message = build_message(
         station_code.strip(),
@@ -95,12 +98,12 @@ async def recive_data(
 
     last_timestamp = station.last_timestamp #LAST_TIMESTAMPS.get(station_code)
 
-    if last_timestamp is not None:
-        if data.timestamp <= last_timestamp:
-            raise HTTPException(
-                status_code=401,
-                detail="Timestamp repetido"
-            )
+    # if last_timestamp is not None:
+    #    if data.timestamp <= last_timestamp:
+    #        raise HTTPException(
+    #            status_code=401,
+    #            detail="Timestamp repetido"
+    #        )
     print("TIMESTAMP NUEVO")
     #LAST_TIMESTAMPS[station_code] = data.timestamp
     
@@ -108,10 +111,12 @@ async def recive_data(
     #     db,
     #     station_code
     # )
+
+    data.timestamp = current_time
     
     measurement = StationMeasurement(
         station_id=station.id,
-        measurement_timestamp=data.timestamp,
+        measurement_timestamp=current_time,
         latitude=data.latitude,
         longitude=data.longitude,
         battery_level=data.battery_level
@@ -140,7 +145,7 @@ async def recive_data(
 
     station_code=station.station_code,
 
-    timestamp=data.timestamp,
+    timestamp=current_time,
 
     latitude=data.latitude,
 

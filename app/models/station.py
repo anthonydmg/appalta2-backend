@@ -9,7 +9,11 @@ class Station(Base):
     name = Column(String)
     mac_address = Column(String)
     secret_key = Column(String)
-    last_timestamp = Column(String)
+    last_timestamp = Column(
+        BigInteger,
+        nullable=False,
+        default=0
+    )
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(
         DateTime,
