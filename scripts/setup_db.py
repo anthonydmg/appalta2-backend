@@ -8,12 +8,11 @@ Código de salida 0 = lista para usar; 1 = error (el mensaje explica qué revisa
 """
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
 import pg8000.native
-from dotenv import load_dotenv
+from pydantic import ValidationError
 from sqlalchemy.engine import make_url
 
 SQL_DIR = Path(__file__).resolve().parent.parent / "sql"
@@ -26,12 +25,12 @@ def connect(url, database: str) -> pg8000.native.Connection:
 
 
 def main(database: str | None = None) -> int:
-    load_dotenv()
-    raw = os.getenv("DATABASE_URL")
-    if not raw:
-        print("ERROR: DATABASE_URL no está definida en .env.")
+    try:
+        from app.config import settings  # misma lectura y validación del .env que la API
+    except ValidationError as e:
+        print(f"ERROR: configuración inválida en .env (ver .env.example):\n{e}")
         return 1
-    url = make_url(raw)
+    url = make_url(settings.database_url)
     name = database or url.database
     print(f"==> Verificando PostgreSQL en {url.host}:{url.port or 5432}")
     try:

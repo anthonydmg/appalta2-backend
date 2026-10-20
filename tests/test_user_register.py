@@ -93,7 +93,7 @@ def test_valid_registration_sends_verification_email(client, users, sent_emails)
     assert users[0].document_of_identity == "12345678"
     [(to, link)] = sent_emails
     assert to == "agricultor@test.pe"
-    assert link.startswith(f"{user_routes.BACKEND_URL}/v1/user/verify/")
+    assert link.startswith(f"{user_routes.PUBLIC_API_URL}/v1/user/verify/")
 
 
 def test_rejected_registration_sends_no_email(client, sent_emails):

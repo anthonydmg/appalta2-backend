@@ -7,7 +7,8 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.config.config import BACKEND_URL, TEMPLATES_DIR
+from app.config import settings
+from app.config.constants import TEMPLATES_DIR
 from app.database import user as user_db
 from app.database.connection import get_db
 from app.schemas import user as user_schemas
@@ -18,6 +19,7 @@ from app.services.rate_limit import email_limiter, login_limiter
 router = APIRouter()
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
+PUBLIC_API_URL = settings.public_api_url  # enlaces de los correos: {PUBLIC_API_URL}/v1/user/...
 RESET_TOKEN_TTL = timedelta(hours=1)
 
 # Respuestas idénticas exista o no la cuenta: no revelan qué correos están registrados
@@ -26,7 +28,7 @@ FORGOT_MESSAGE = "Si el correo está registrado, te enviaremos un enlace de recu
 
 
 def _verification_link(token: str) -> str:
-    return f"{BACKEND_URL}/v1/user/verify/{token}"
+    return f"{PUBLIC_API_URL}/v1/user/verify/{token}"
 
 
 def _issue_tokens(user) -> user_schemas.Token:
@@ -153,7 +155,7 @@ def forgot_password(req: user_schemas.ResetRequest, background: BackgroundTasks,
         user.reset_password_token = str(uuid.uuid4())
         user.reset_password_token_expiry = datetime.now(timezone.utc) + RESET_TOKEN_TTL
         db.commit()
-        link = f"{BACKEND_URL}/v1/user/reset/{user.reset_password_token}"
+        link = f"{PUBLIC_API_URL}/v1/user/reset/{user.reset_password_token}"
         background.add_task(send_password_reset_email_gmail, user.email, link)
     return {"message": FORGOT_MESSAGE}
 

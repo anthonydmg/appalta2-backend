@@ -52,7 +52,8 @@ if ($InstallDeps) {
 # 2. Archivo .env
 # ---------------------------------------------------------------
 if (-not (Test-Path ".env")) {
-    Fail "No existe .env. Crea uno con al menos DATABASE_URL, BACKEND_URL y MAIL_*."
+    Copy-Item ".env.example" ".env"
+    Fail "Se creó .env a partir de .env.example. Completa DATABASE_URL y MAIL_* y vuelve a ejecutar."
 }
 
 $envVars = @{}

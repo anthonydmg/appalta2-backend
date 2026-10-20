@@ -123,7 +123,7 @@ scripts/assistant/     # chat en consola y evaluación con preguntas reales
 
 ## Autenticación
 
-Valida el token con la `SECRET_KEY` y el `ALGORITHM` de `app/services/auth.py`
+Valida el token con la `JWT_SECRET_KEY` y el `ALGORITHM` de `app/services/auth.py`
 (no se duplican), con `HTTPBearer` para que Swagger muestre el campo de token.
 
 ## Configuración (opcional, en el mismo `.env`)

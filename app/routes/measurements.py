@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 from starlette.concurrency import run_in_threadpool
 
-from app.config.config import MAX_DRIFT_SECONDS
+from app.config.constants import MAX_DRIFT_SECONDS
 from app.database.connection import get_db
 from app.database.sensor_measurement import get_sensor_history
 from app.database.station import get_station_by_station_code

@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from app.config.config import ONLINE_TIMEOUT
+from app.config.constants import ONLINE_TIMEOUT
 
 
 def _to_float(value) -> Optional[float]:

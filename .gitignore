@@ -214,9 +214,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-.env
-.env.production
 .vscode/
+
+# Variables de entorno: solo se versionan las plantillas
+.env
+.env.*
+!.env.example
 
 # IDE (PyCharm)
 .idea/

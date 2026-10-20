@@ -25,9 +25,10 @@ La **base de datos no va en Docker**: es la de producción existente (`DATABASE_
    SELECT document_of_identity, count(*) FROM users GROUP BY 1 HAVING count(*) > 1;
    ```
    Luego ejecutar `sql/006_users_unique_dni.sql`.
-3. **Configuración**: `cp .env.production.example .env.production` y completar:
+3. **Configuración**: `cp .env.example .env.production` y completar los valores marcados `[PROD]`:
+   - `APP_ENV=production` y `JWT_SECRET_KEY` (32+ caracteres aleatorios; sin ella la API no arranca).
    - `DATABASE_URL` de producción (si PostgreSQL está en el mismo servidor: host `host.docker.internal`).
-   - `BACKEND_URL=https://proyectos-didt.inictel-uni.edu.pe/api/palta` (los enlaces del correo usan esta URL).
+   - `PUBLIC_API_URL=https://proyectos-didt.inictel-uni.edu.pe/api/palta` (los enlaces del correo usan esta URL).
    - `MAIL_*`: cuenta de Gmail con **contraseña de aplicación** (16 caracteres;
      Cuenta de Google → Seguridad → Verificación en 2 pasos → Contraseñas de aplicaciones).
 4. **Levantar**:
@@ -50,6 +51,19 @@ La **base de datos no va en Docker**: es la de producción existente (`DATABASE_
 git pull
 docker compose --env-file .env.production up -d --build backend
 ```
+
+### Variables de entorno renombradas
+
+Los nombres antiguos se siguen aceptando (el log avisa que están obsoletos), pero conviene
+actualizar `.env.production` en el servidor:
+
+| Antes | Ahora |
+|---|---|
+| `BACKEND_URL` | `PUBLIC_API_URL` |
+| `SECRET_KEY` | `JWT_SECRET_KEY` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` / `REFRESH_TOKEN_EXPIRE_DAYS` | `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` / `JWT_REFRESH_TOKEN_EXPIRE_DAYS` |
+| `USE_CREDENTIALS` | `MAIL_USE_CREDENTIALS` |
+| — | `APP_ENV=production` (nueva: exige `JWT_SECRET_KEY` segura) |
 
 ### Migraciones pendientes (aplicar ANTES de levantar la nueva versión)
 
