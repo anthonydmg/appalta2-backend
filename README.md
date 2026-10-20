@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🥑 Appalta2 — Backend
+# 🥑 Backend Services API
 
 **API para el monitoreo y diagnóstico de cultivos de palta Hass**
 
