@@ -1,42 +1,46 @@
 from sqlalchemy.orm import Session
-from app.models.user import User
-from app.services import auth
-from app.schemas import user
 
-def get_user_by_email(db: Session, email: str):
+from app.models.user import User
+from app.schemas.user import UserCreate
+from app.services import auth
+
+
+def get_user_by_email(db: Session, email: str) -> User | None:
     return db.query(User).filter(User.email == email).first()
 
-def get_user_by_document(db: Session, document_of_identity: str):
+
+def get_user_by_document(db: Session, document_of_identity: str) -> User | None:
     return db.query(User).filter(User.document_of_identity == document_of_identity).first()
 
-def get_user_by_token(db: Session, verification_token: str):
+
+def get_user_by_token(db: Session, verification_token: str) -> User | None:
     return db.query(User).filter(User.verification_token == verification_token).first()
 
-def get_user_by_reset_password_token(db: Session, reset_password_token: str):
+
+def get_user_by_reset_password_token(db: Session, reset_password_token: str) -> User | None:
     return db.query(User).filter(User.reset_password_token == reset_password_token).first()
 
-def create_user(db: Session, user: user.UserCreate, verification_token: str):
-    hashed = auth.hash_password(user.password)
-    db_user = User(email = user.email, 
-                          firstname = user.firstname,
-                          hashed_password = hashed,
-                          father_lastname = user.father_lastname,
-                          mother_lastname = user.mother_lastname,
-                          document_of_identity = user.document_of_identity,
-                          cellphone = user.cellphone,
-                          is_verified = False,
-                          verification_token = verification_token
-                          )
-    
+
+def create_user(db: Session, user: UserCreate, verification_token: str) -> User:
+    db_user = User(
+        email=user.email,
+        firstname=user.firstname,
+        hashed_password=auth.hash_password(user.password),
+        father_lastname=user.father_lastname,
+        mother_lastname=user.mother_lastname,
+        document_of_identity=user.document_of_identity,
+        cellphone=user.cellphone,
+        is_verified=False,
+        verification_token=verification_token,
+    )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return db_user
 
 
-def autenticate_user(db: Session, email: str, password: str):
+def autenticate_user(db: Session, email: str, password: str) -> User | None:
     user = get_user_by_email(db, email)
-    print("autenticate_user user:", user)
     if not user or not auth.verify_password(password, user.hashed_password):
         return None
     return user

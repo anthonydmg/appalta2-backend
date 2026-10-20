@@ -1,6 +1,6 @@
 import re
 
-from pydantic import BaseModel, EmailStr, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
 DNI_PATTERN = re.compile(r"\d{8}")
 CELLPHONE_PATTERN = re.compile(r"\d{9}")
@@ -37,18 +37,27 @@ class UserLogin(BaseModel):
     password: str
 
 class UserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     email: EmailStr
     firstname: str
-
-    class Config:
-        orm_mode = True
 
 class UserInfo(BaseModel):
     firstname: str
     father_lastname: str
     mother_lastname: str
     email: EmailStr
+
+    @classmethod
+    def from_user(cls, user) -> "UserInfo":
+        return cls(
+            firstname=user.firstname,
+            father_lastname=user.father_lastname,
+            mother_lastname=user.mother_lastname,
+            email=user.email,
+        )
+
 
 class Token(BaseModel):
     access_token: str

@@ -124,10 +124,7 @@ scripts/assistant/     # chat en consola y evaluación con preguntas reales
 ## Autenticación
 
 Valida el token con la `SECRET_KEY` y el `ALGORITHM` de `app/services/auth.py`
-(no se duplican). No reutiliza `verify_token` porque esa función **devuelve**
-la excepción en lugar de lanzarla cuando el token es inválido, así que acepta
-tokens inválidos o expirados. Conviene corregirla (`return` → `raise`) cuando se
-revise la API.
+(no se duplican), con `HTTPBearer` para que Swagger muestre el campo de token.
 
 ## Configuración (opcional, en el mismo `.env`)
 

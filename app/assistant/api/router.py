@@ -42,11 +42,7 @@ def get_chat_service() -> ChatService:
 
 
 def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer)) -> str:
-    """Valida el access token emitido por el backend (misma SECRET_KEY) y devuelve el email.
-
-    Se valida aquí en lugar de usar app.services.auth.verify_token porque esa
-    función devuelve (no lanza) la excepción cuando el token es inválido.
-    """
+    """Valida el access token emitido por el backend (misma SECRET_KEY) y devuelve el email."""
     unauthorized = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Token inválido o expirado",

@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, BigInteger, Numeric, func
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, func
+
 from app.database.connection import Base
-from datetime import datetime, timezone 
+
 
 class User(Base):
     __tablename__ = "users"
