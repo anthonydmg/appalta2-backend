@@ -1,37 +1,67 @@
-# Producción (marcha blanca): API + modelo de IA. La base de datos es la existente de
-# producción y se configura con DATABASE_URL en .env.production. Ver DEPLOY.md.
+# Producción: API + modelo de IA. La base de datos es la PostgreSQL existente del servidor
+# (DATABASE_URL en .env.production). Servicios y puertos: SERVICES.md · Despliegue: DEPLOY.md
 #
-#   docker compose --env-file .env.production up -d --build
+#   docker compose --env-file .env.production up -d --build     # levantar / actualizar
+#   docker compose --env-file .env.production ps                # estado y healthchecks
+#   docker compose --env-file .env.production logs -f backend   # logs
+#
+# --env-file: las variables ${...} de este archivo (BACKEND_PORT, LLM_MODEL, …) salen de .env.production.
+
+name: appalta2
 
 services:
   backend:
-    build: .
-    image: appalta2-backend:latest
+    build:
+      context: .
+      args:
+        APP_VERSION: "1.0.0"
+    image: appalta2-backend:1.0.0
     container_name: appalta2-backend
     restart: unless-stopped
     env_file: .env.production
     environment:
       # El modelo corre en el contenedor "ollama" (red interna de compose)
       LLM_BASE_URL: http://ollama:11434
+      # Aplica las migraciones pendientes de sql/ al arrancar (false = solo con setup_db manual)
+      MIGRATE_ON_START: ${MIGRATE_ON_START:-true}
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      # Solo en 127.0.0.1: el tráfico público entra por el proxy HTTPS del mismo servidor
+      - "${BACKEND_BIND:-127.0.0.1}:${BACKEND_PORT:-8000}:8000"
     extra_hosts:
       # Permite DATABASE_URL=...@host.docker.internal:5432/... si PostgreSQL está en el mismo servidor
       - "host.docker.internal:host-gateway"
     depends_on:
+      # "started" y no "healthy": usuarios y estaciones funcionan aunque el modelo falle;
+      # el asistente responde 503 hasta que Ollama esté listo.
       ollama:
-        condition: service_healthy
+        condition: service_started
+    # Endurecimiento: sistema de archivos de solo lectura, sin privilegios extra
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    stop_grace_period: 20s
     logging:
       driver: json-file
       options: { max-size: "20m", max-file: "5" }
 
   ollama:
-    image: ollama/ollama:latest
+    # Versión probada con gemma4:e2b; actualizar solo tras correr scripts.assistant.run_eval
+    image: ollama/ollama:0.33.3
     container_name: appalta2-ollama
     restart: unless-stopped
     environment:
       # Igual a LLM_MAX_CONCURRENCY del backend (CPU: 1–2 generaciones a la vez)
       OLLAMA_NUM_PARALLEL: "${LLM_MAX_CONCURRENCY:-2}"
+      OLLAMA_MAX_LOADED_MODELS: "1"
       OLLAMA_KEEP_ALIVE: "30m"
     volumes:
       - ollama-models:/root/.ollama
@@ -41,13 +71,14 @@ services:
       interval: 15s
       timeout: 10s
       retries: 10
+      start_period: 20s
     logging:
       driver: json-file
       options: { max-size: "20m", max-file: "3" }
 
   # Descarga el modelo la primera vez (~7 GB); en los siguientes arranques termina al instante.
   ollama-pull:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.33.3
     container_name: appalta2-ollama-pull
     restart: "no"
     environment:
@@ -59,3 +90,4 @@ services:
 
 volumes:
   ollama-models:
+    name: appalta2-ollama-models

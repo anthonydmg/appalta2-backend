@@ -5,7 +5,7 @@
 .DESCRIPTION
     1. Crea el entorno virtual (venv) si no existe e instala requirements.txt.
     2. Verifica que exista el archivo .env con DATABASE_URL.
-    3. Si la base de datos no existe, la crea y ejecuta sql/*.sql en orden.
+    3. Crea la base si no existe y aplica las migraciones pendientes de sql/.
     4. Inicia uvicorn con app.main:app.
 
 .EXAMPLE
@@ -65,7 +65,7 @@ Get-Content ".env" | ForEach-Object {
 if (-not $envVars["DATABASE_URL"]) { Fail "DATABASE_URL no esta definida en .env." }
 
 # ---------------------------------------------------------------
-# 3. Base de datos (crear + migrar si no existe)
+# 3. Base de datos: crea la base si no existe y aplica las migraciones pendientes
 #    Con Python (pg8000) y no con psql: Windows Smart App Control bloquea psql.exe.
 # ---------------------------------------------------------------
 if (-not $SkipDb) {

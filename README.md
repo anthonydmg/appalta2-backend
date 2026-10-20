@@ -40,7 +40,7 @@ FastAPI · SQLAlchemy · PostgreSQL · Pydantic · JWT + bcrypt · Jinja2 · SSE
 ```powershell
 git clone https://github.com/pdsiia-inictel-uni/appalta2-backend.git
 cd appalta2-backend
-.\run.ps1          # crea venv, crea .env desde la plantilla, migra la BD y levanta la API
+.\run.ps1          # crea venv y .env, crea/migra la BD (PostgreSQL local) y levanta la API
 ```
 
 Completa `.env` (marcado `REEMPLAZAR_…`), vuelve a ejecutar `.\run.ps1` y abre
@@ -50,11 +50,11 @@ http://localhost:8000/docs.
 
 ```bash
 cp .env.example .env.production     # completar los valores [PROD]
-docker compose --env-file .env.production run --rm backend python -m scripts.setup_db
-docker compose --env-file .env.production up -d --build
+docker compose --env-file .env.production up -d --build   # API + Ollama; migra la BD al arrancar
 ```
 
-Guía completa, diagramas y checklist: **[DEPLOY.md](DEPLOY.md)**.
+Guía completa, diagramas y checklist: **[DEPLOY.md](DEPLOY.md)** ·
+Servicios internos y externos: **[SERVICES.md](SERVICES.md)**.
 
 ## ⚙️ Configuración
 
@@ -84,6 +84,8 @@ app/
 sql/                 # migraciones (se aplican con scripts/setup_db.py)
 scripts/             # setup_db (migraciones), check_env, evaluación del asistente
 tests/               # pytest (sin BD ni modelo)
+Dockerfile           # imagen de producción (dos etapas, usuario sin privilegios)
+docker-compose.yml   # producción: backend + Ollama
 ```
 
 ## 🧪 Tests

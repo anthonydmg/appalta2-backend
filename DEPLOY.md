@@ -3,7 +3,9 @@
 > Desarrollado por el **equipo de [INICTEL-UNI](https://github.com/pdsiia-inictel-uni)** · Licencia [MIT](LICENSE)
 
 Este documento describe **qué hace el sistema**, **cómo se conectan sus piezas** (incluidos los
-sistemas externos) y **cómo desplegarlo y operarlo en producción**.
+sistemas externos) y **cómo desplegarlo y operarlo en producción**. El inventario detallado de
+cada servicio interno y externo (configuración, límites, monitoreo y qué pasa si falla) está en
+**[SERVICES.md](SERVICES.md)**.
 
 | Repositorio | Contenido |
 |---|---|
@@ -125,6 +127,8 @@ flowchart LR
 | **Gmail SMTP** | Correos de verificación y recuperación | SMTP 587 STARTTLS | `MAIL_*` |
 | **ArcGIS World Imagery** | Mapa satelital en la app | HTTPS | Sin clave |
 | **Registro de Ollama** | Descarga inicial del modelo (~7 GB) | HTTPS | `LLM_MODEL` |
+
+Detalle de cada servicio, puertos, matriz de fallas y monitoreo: [SERVICES.md](SERVICES.md).
 
 ### Componentes internos del backend
 
@@ -445,7 +449,8 @@ Nuevas migraciones: agregar `sql/008_descripcion.sql` (se aplica una sola vez).
 | Asistente | Engine de solo lectura con `statement_timeout`; la estación sale de la URL, no del modelo |
 | Transporte | HTTPS en producción; la app release rechaza HTTP |
 | Configuración | `APP_ENV=production` exige `JWT_SECRET_KEY` segura y rechaza valores `REEMPLAZAR_…` |
-| Contenedor | Usuario sin privilegios; Ollama sin puerto expuesto |
+| Contenedor | Usuario sin privilegios, sistema de archivos de solo lectura, sin capacidades Linux, límite de 1 GB; API publicada solo en `127.0.0.1`; Ollama sin puerto expuesto; imágenes con versión fijada |
+| Páginas web | Verificación y recuperación sin recursos externos (scripts, fuentes ni imágenes de terceros) |
 | Datos del teléfono | Los tokens no se incluyen en el respaldo en la nube de Android |
 
 ---
@@ -477,7 +482,9 @@ python -m scripts.check_env .env.production --connect   # opcional: prueba BD y 
 | `MAIL_USERNAME` / `MAIL_PASSWORD` | Para enviar correos | Cuenta Gmail + contraseña de aplicación (16) |
 | `API_DOCS_ENABLED` | — | vacío (Swagger cerrado) |
 | `LLM_MODEL`, `LLM_MAX_CONCURRENCY` | — | `gemma4:e2b`, `2` |
-| `BACKEND_PORT` | — | `8000` (solo Docker Compose) |
+| `BACKEND_PORT` | — | `8000` (solo Docker Compose; el proxy apunta a este puerto) |
+| `BACKEND_BIND` | — | `127.0.0.1` (solo Docker Compose; `0.0.0.0` si el proxy está en otra máquina) |
+| `MIGRATE_ON_START` | — | `true`: aplica las migraciones pendientes al arrancar el contenedor |
 
 Lista completa y valores por defecto: [`.env.example`](.env.example) y `app/config/environment.py`.
 Nombres antiguos (`BACKEND_URL`, `SECRET_KEY`, `USE_CREDENTIALS`, …) se aceptan con aviso en el log.
@@ -489,7 +496,16 @@ Nombres antiguos (`BACKEND_URL`, `SECRET_KEY`, `USE_CREDENTIALS`, …) se acepta
 **Requisitos del servidor**: Docker + Docker Compose · RAM ≥ 12 GB (el modelo ocupa ~7 GB) ·
 ~10 GB de disco libre · acceso a PostgreSQL · salida a `smtp.gmail.com:587` · proxy HTTPS que
 publique `/api/palta/` hacia `http://127.0.0.1:${BACKEND_PORT}/api/` **sin buffering** (para el
-streaming del chat y de `/stations/stream`).
+streaming del chat y de `/stations/stream`). Configuración de referencia del proxy en
+[SERVICES.md §3.5](SERVICES.md#35-proxy-https).
+
+**Contenedores** (`docker-compose.yml`, proyecto `appalta2`):
+
+| Contenedor | Imagen | Función |
+|---|---|---|
+| `appalta2-backend` | `appalta2-backend:1.0.0` (se construye con el `Dockerfile`) | API; al arrancar aplica las migraciones pendientes |
+| `appalta2-ollama` | `ollama/ollama:0.33.3` | Modelo de lenguaje (volumen `appalta2-ollama-models`) |
+| `appalta2-ollama-pull` | `ollama/ollama:0.33.3` | Descarga el modelo la primera vez y termina |
 
 ```bash
 # 1. Código
@@ -503,18 +519,24 @@ psql "$DATABASE_URL" -c "SELECT document_of_identity, count(*) FROM users GROUP 
 
 # 4. Configuración
 cp .env.example .env.production && nano .env.production
-docker compose --env-file .env.production run --rm backend python -m scripts.check_env -
+docker compose --env-file .env.production build
+docker compose --env-file .env.production run --rm backend python -m scripts.check_env - --connect
 
-# 5. Migraciones
-docker compose --env-file .env.production run --rm backend python -m scripts.setup_db
+# 5. Migraciones pendientes (solo consulta; se aplican solas al arrancar)
+docker compose --env-file .env.production run --rm backend python -m scripts.setup_db --check
 
 # 6. Levantar
-docker compose --env-file .env.production up -d --build
-docker compose logs -f ollama-pull          # primera vez: descarga ~7 GB, termina con "success"
+docker compose --env-file .env.production up -d
+docker compose --env-file .env.production logs -f backend       # "Base de datos al día" + "Application startup complete"
+docker compose --env-file .env.production logs -f ollama-pull   # primera vez: descarga ~7 GB, termina con "success"
 ```
 
 > Dentro del contenedor no existe el archivo: `check_env -` y `setup_db` leen las variables que Docker Compose inyecta
 > desde `.env.production` (`env_file`).
+>
+> Si una migración falla, el backend **no arranca** y Docker lo reintenta: el error está en
+> `logs backend`. Para aplicar las migraciones solo a mano, poner `MIGRATE_ON_START=false` en
+> `.env.production` y usar `run --rm backend python -m scripts.setup_db`.
 
 **Verificar**:
 
@@ -533,11 +555,16 @@ iniciar sesión → abrir una estación → preguntar al asistente.
 
 ```bash
 git pull
-docker compose --env-file .env.production run --rm backend python -m scripts.setup_db   # migraciones pendientes
-docker compose --env-file .env.production up -d --build backend
+pg_dump -Fc -f appalta2_$(date +%F).dump appalta2                       # si la versión trae migraciones nuevas
+docker compose --env-file .env.production up -d --build backend         # reconstruye, migra y reinicia
+docker compose --env-file .env.production logs -f backend
 ```
 
-Las conversaciones del chat en curso se reinician (la memoria vive en el proceso).
+Al subir de versión: actualizar `APP_VERSION` e `image` en `docker-compose.yml` y `VERSION` en
+`app/main.py`. Las conversaciones del chat en curso se reinician (la memoria vive en el proceso).
+
+**Actualizar Ollama**: cambiar la etiqueta `ollama/ollama:X.Y.Z` en `docker-compose.yml`,
+`up -d ollama` y correr `scripts.assistant.run_eval` (≥ 95 %) antes de darlo por bueno.
 
 **Volver atrás**: `git checkout <versión anterior>` y repetir el `up -d --build backend`. Las
 migraciones `006` y `007` son compatibles con versiones anteriores.
@@ -558,7 +585,9 @@ migraciones `006` y `007` son compatibles con versiones anteriores.
 **Escalar**: la API corre con **1 worker** porque la memoria del chat, los clientes SSE y el
 límite de intentos viven en el proceso. Para varios workers o réplicas, mover esas tres piezas a
 Redis (store de conversaciones, Pub/Sub de mediciones y contadores). Lo demás no guarda estado;
-el pool de BD se ajusta con `DB_POOL_SIZE` / `DB_MAX_OVERFLOW`.
+el pool de BD se ajusta con `DB_POOL_SIZE` / `DB_MAX_OVERFLOW`. Detalle en
+[SERVICES.md §7](SERVICES.md#7-estado-en-memoria-y-escalamiento-redis); monitoreo y matriz de
+fallas en [SERVICES.md §8–9](SERVICES.md#8-matriz-de-fallas).
 
 ---
 
@@ -592,7 +621,8 @@ verificar que `app/src/main/assets/leaf_mt_damage_classifier.tflite` esté prese
 - [ ] `PUBLIC_API_URL` es la URL pública `https://` (los enlaces de los correos la usan)
 - [ ] Gmail con contraseña de aplicación (16 caracteres); `check_env --connect` OK
 - [ ] `setup_db --check` sin pendientes
-- [ ] Proxy HTTPS con buffering desactivado para `/stream`
+- [ ] Proxy HTTPS con buffering desactivado para `/stream`, apuntando a `127.0.0.1:${BACKEND_PORT}`
+- [ ] `docker compose ps`: `appalta2-backend` healthy, `appalta2-ollama` healthy, `ollama-pull` Exited (0)
 - [ ] Healthchecks OK y `run_eval` ≥ 95 %
 - [ ] Respaldo diario de la BD programado
 
