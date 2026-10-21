@@ -1,17 +1,20 @@
-from app.models.station import Station
+import time
+
 from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from app.database.sensor_measurement import get_measurement_sensors
+from app.models.station import Station
 from app.models.station_measurement import StationMeasurement
 from app.models.sensor_measurement import SensorMeasurement
 from app.models.sensor import Sensor
-from app.utils import ONLINE_TIMEOUT, to_float
 from app.schemas.station import StationResponse, SensorMeasurementResponse
-import time
+from app.config.constants import ONLINE_TIMEOUT
 
 def get_station_by_station_code(
     db,
     station_code
 ):
-
     return (
         db.query(Station)
         .filter(
@@ -31,37 +34,24 @@ def update_last_timestamp(
     db.commit()
 
 def get_latest_station_measurements(db):
-
     latest_measurements = (
-
         db.query(
-
             StationMeasurement.station_id,
-
             func.max(
                 StationMeasurement.measurement_timestamp
             ).label("max_timestamp")
-
         )
-
         .group_by(
             StationMeasurement.station_id
         )
-
         .subquery()
-
     )
 
     return (
-
         db.query(
-
             Station,
-
             StationMeasurement
-
         )
-
         .outerjoin(
 
             latest_measurements,
@@ -70,27 +60,19 @@ def get_latest_station_measurements(db):
             latest_measurements.c.station_id
 
         )
-
         .outerjoin(
-
             StationMeasurement,
-
             (
                 StationMeasurement.station_id ==
                 latest_measurements.c.station_id
             )
-
             &
-
             (
                 StationMeasurement.measurement_timestamp ==
                 latest_measurements.c.max_timestamp
             )
-
         )
-
         .all()
-
     )
 
 def get_sensor_measurements(
@@ -105,24 +87,16 @@ def get_sensor_measurements(
     rows = (
 
         db.query(
-
             SensorMeasurement,
-
             Sensor
-
         )
-
         .join(
-
             Sensor,
-
             Sensor.id ==
             SensorMeasurement.sensor_id
 
         )
-
         .filter(
-
             SensorMeasurement.measurement_id.in_(
                 measurement_ids
             )
@@ -138,17 +112,11 @@ def get_sensor_measurements(
     for sensor_measurement, sensor in rows:
 
         sensor_map.setdefault(
-
             sensor_measurement.measurement_id,
-
             []
-
         ).append(
-
             SensorMeasurementResponse(
-
                 sensor_code=sensor.sensor_code,
-
                 value=float(
                     sensor_measurement.sensor_value
                 )
@@ -202,49 +170,15 @@ def build_station_response(
                     else None
 
                 ),
-
-                latitude=to_float(
-
-                    measurement.latitude
-
-                    if measurement
-
-                    else None
-
-                ),
-
-                longitude=to_float(
-
-                    measurement.longitude
-
-                    if measurement
-
-                    else None
-
-                ),
-
-                battery_level=to_float(
-
-                    measurement.battery_level
-
-                    if measurement
-
-                    else None
-
-                ),
-
+                latitude = measurement.latitude,
+                longitude=measurement.longitude,
+                battery_level=measurement.battery_level,
                 measurements=(
-
                     sensor_map.get(
-
                         measurement.id,
-
                         []
-
                     )
-
                     if measurement
-
                     else []
 
                 )
@@ -262,27 +196,19 @@ def get_all_stations(db):
     )
 
     measurement_ids = [
-
         measurement.id
-
         for _, measurement in results
-
         if measurement is not None
-
     ]
 
     sensor_map = get_sensor_measurements(
-
         db,
-
         measurement_ids
-
     )
 
     return build_station_response(
-
         results,
-
         sensor_map
-
     )
+
+
