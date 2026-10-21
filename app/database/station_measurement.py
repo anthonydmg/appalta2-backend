@@ -1,13 +1,14 @@
 from sqlalchemy.orm import Session
 
-from app.models.station import Station
 from app.models.sensor import Sensor
-from app.models.station_measurement import StationMeasurement
 from app.models.sensor_measurement import SensorMeasurement
+from app.models.station import Station
+from app.models.station_measurement import StationMeasurement
+from app.schemas.station_measurement import StationMeasurementRequest
 
-from app.schemas.station_measurement import (
-    StationMeasurementRequest
-)
+
+class UnknownSensorError(ValueError):
+    pass
 
 def get_sensor_map(
     db: Session,
@@ -36,6 +37,10 @@ def get_sensor_map(
         for sensor_code, sensor_id in rows
 
     }
+
+def get_sensor_ids(db: Session, sensor_codes: list[str]) -> dict[str, int]:
+    rows = db.query(Sensor.sensor_code, Sensor.id).filter(Sensor.sensor_code.in_(sensor_codes)).all()
+    return dict(rows)
 
 
 def save_measurement(
@@ -108,42 +113,12 @@ def save_measurement(
     return measurement
 
 
-
-def get_latest_station_measurement(
-    db: Session,
-    station_code: str
-):
-
+def get_latest_station_measurement(db: Session, station_code: str):
+    """(estación, su medición más reciente o None); None si la estación no existe."""
     return (
-
-        db.query(
-
-            Station,
-
-            StationMeasurement
-
-        )
-
-        .outerjoin(
-
-            StationMeasurement,
-
-            StationMeasurement.station_id == Station.id
-
-        )
-
-        .filter(
-
-            Station.station_code == station_code
-
-        )
-
-        .order_by(
-
-            StationMeasurement.measurement_timestamp.desc()
-
-        )
-
+        db.query(Station, StationMeasurement)
+        .outerjoin(StationMeasurement, StationMeasurement.station_id == Station.id)
+        .filter(Station.station_code == station_code)
+        .order_by(StationMeasurement.measurement_timestamp.desc())
         .first()
-
     )

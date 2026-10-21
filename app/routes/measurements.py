@@ -1,13 +1,16 @@
+import logging
+import time
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Header, Path, Query
 from sqlalchemy.orm import Session
 from app.database.connection import get_db
-from app.config.config import MAX_DRIFT_SECONDS
 from app.database.sensor_measurement import get_sensor_history
-from app.database.station import get_station_by_station_code, update_last_timestamp
+from app.database.station import get_station_by_station_code
 from app.database.station_measurement import save_measurement
 from app.database.station_events import save_events
 from app.schemas.sensor_measurement import SensorMeasurementHistoryItem, SensorMeasurementHistoryResponse
-from app.utils import build_message, verify_signature
+from app.services.signature_hmac import build_message, verify_signature
 from app.schemas.station_measurement import StationMeasurementRequest, StationMeasurementEvent, SensorMeasurementEvent
 from app.models.station_measurement import StationMeasurement
 from app.services.sse_manager import sse_manager
@@ -21,16 +24,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-API_KEYS = {
-    "EST001": "abc123",
-    "EST002": "def456"
-}
+StationCode = Path(pattern=r"^[A-Z0-9_-]+$", max_length=50)
 
-SECRET_KEYS = {
-    "EST001": "secret_123"
-}
-
-LAST_TIMESTAMPS = {}
 
 @router.post("/stations/{station_code}/measurements")
 async def recive_data(

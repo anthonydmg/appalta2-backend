@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, BigInteger, Numeric, func
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, func
+
 from app.database.connection import Base
-from datetime import datetime, timezone 
+
 
 class User(Base):
     __tablename__ = "users"
@@ -10,13 +11,12 @@ class User(Base):
     firstname = Column(String, nullable=True)
     father_lastname = Column(String, nullable=True)
     mother_lastname = Column(String, nullable=True)
-    document_of_identity = Column(String, nullable=True)
+    document_of_identity = Column(String, unique=True, index=True, nullable=True)
     cellphone = Column(String(20), unique= False, index = True)
     is_verified = Column(Boolean, default=False)
     verification_token = Column(String, nullable=True)
     reset_password_token = Column(String, nullable=True)
     reset_password_token_expiry = Column(DateTime, nullable=True)
-    created_at = Column(
-    DateTime(timezone=True),
-    server_default=func.now(),
-    nullable=False)
+    # Último cambio de contraseña: los refresh tokens emitidos antes dejan de valer (sql/007)
+    password_changed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Correo verificado - Appalta2</title>
   <style>
     body {
@@ -20,6 +21,8 @@
       text-align: center;
       padding: 40px;
       width: 400px;
+      max-width: calc(100% - 32px);
+      box-sizing: border-box;
     }
     h1 {
       color: #2e7d32;
@@ -41,15 +44,20 @@
     .button:hover {
       background-color: #388e3c;
     }
-    img {
+    .check {
       width: 80px;
+      height: 80px;
       margin-bottom: 20px;
     }
   </style>
 </head>
 <body>
   <div class="card">
-    <img src="https://cdn-icons-png.flaticon.com/512/190/190411.png" alt="check">
+    <!-- Ícono en línea: la página no depende de servicios externos -->
+    <svg class="check" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" role="img" aria-label="Verificado">
+      <circle cx="26" cy="26" r="25" fill="#4caf50"/>
+      <path fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" d="M14 27l7 7 16-16"/>
+    </svg>
     <h1>¡Correo verificado con éxito!</h1>
     <p>Tu cuenta en <strong>Appalta2</strong> ha sido activada correctamente.<br>
     Ya puedes iniciar sesión en la aplicación.</p>

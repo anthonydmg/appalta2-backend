@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { background-color: #f3f6f4; font-family: 'Segoe UI', Roboto, sans-serif; color: #333; margin: 0; padding: 0; }
+        .container { max-width: 600px; background: #ffffff; margin: 40px auto; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #2E7D32, #66BB6A); padding: 24px; text-align: center; color: white; }
+        .header h1 { margin: 0; font-size: 24px; font-weight: 600; }
+        .content { padding: 32px 40px; text-align: center; }
+        .content p { font-size: 16px; color: #444; line-height: 1.6; margin-bottom: 16px; }
+        .button { display: inline-block; background: #43A047; color: white; padding: 14px 28px; margin: 24px 0; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; }
+        .footer { background: #f0f0f0; padding: 18px; text-align: center; font-size: 13px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Appalta2 🌿</h1>
+            <p>Diagnóstico inteligente de hojas de palta Hass</p>
+        </div>
+        <div class="content">
+            <p>¡Hola!</p>
+            <p>Gracias por registrarte en <strong>Appalta2</strong>, la aplicación que te ayuda a analizar el estado de salud de tus hojas de palta.</p>
+            <p>Antes de comenzar, por favor verifica tu correo electrónico haciendo clic en el siguiente botón:</p>
+            <a href="{{ link }}" class="button">Verificar mi correo</a>
+            <p>Si no solicitaste esta cuenta, puedes ignorar este mensaje.</p>
+        </div>
+        <div class="footer">
+            © {{ year }} Appalta2 · Diagnóstico inteligente de hojas de palta Hass
+        </div>
+    </div>
+</body>
+</html>

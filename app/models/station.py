@@ -1,6 +1,7 @@
-from sqlalchemy import Column, String, DateTime, BigInteger, Numeric
+from sqlalchemy import BigInteger, Column, DateTime, String, func
+
 from app.database.connection import Base
-from sqlalchemy import func
+
 
 class Station(Base):
     __tablename__ = "stations"
@@ -15,8 +16,4 @@ class Station(Base):
         default=0
     )
     created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(
-        DateTime,
-        server_default=func.now(),
-        onupdate=func.now()
-    )
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
