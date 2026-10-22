@@ -1,12 +1,17 @@
+# API
 fastapi
 uvicorn
-sqlalchemy
-psycopg[binary]
 python-jose[cryptography]
 passlib[bcrypt]
 pydantic[email]
-fastapi-mail
 python-dotenv
 bcrypt==4.0.1
-resend
+python-dotenv
 sse-starlette
+fastapi-mail
+# Base de datos
+sqlalchemy
+psycopg[binary]
+# Asistente IA (app/assistant)
+httpx==0.28.1
+tzdata==2026.4

@@ -1,23 +1,36 @@
+# Solo entran a la imagen app/, scripts/, sql/, requirements.txt y docker-entrypoint.sh
+
 # Entornos virtuales
 venv/
-.env/
-.env.local/
 .venv/
 
-# Python
-__pycache__/
-*.pyc
-*.pyo
+# Secretos: se entregan al contenedor con env_file, nunca dentro de la imagen
+.env
+.env.*
+
+# Python (en cualquier carpeta)
+**/__pycache__
+**/*.pyc
+**/*.pyo
+.pytest_cache/
+
+# Desarrollo y documentación
+tests/
+scratch*.py
+requirements-dev.txt
+run.ps1
+docker-compose*.yml
+Dockerfile
+.dockerignore
+*.md
+LICENSE
 
 # Git
 .git/
 .gitignore
+.gitattributes
 
-# IDE
+# IDE y SO
 .vscode/
 .idea/
-
-# SO
 .DS_Store
-
-tests/

@@ -1,113 +1,111 @@
-from fastapi import APIRouter, Depends, HTTPException, Body, Header, Path, Request
-from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
-from sqlalchemy.orm import Session
-
-from app.services import auth
-
-from app.database import user as user_db
-from app.schemas import user as user_schemas
-from app.database.connection import get_db
-from jose import jwt, JWTError
 import uuid
-from app.config.config import BACKEND_URL
-from app.utils import send_verification_email_gmail, send_password_reset_email_gmail
-import datetime
 from datetime import datetime, timedelta, timezone
 
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.config import settings
+from app.config.constants import TEMPLATES_DIR
+from app.database import user as user_db
+from app.database.connection import get_db
+from app.schemas import user as user_schemas
+from app.services import auth
+from app.services.email import send_password_reset_email_gmail, send_verification_email_gmail
+from app.services.rate_limit import email_limiter, login_limiter
+
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(directory=TEMPLATES_DIR)
+
+PUBLIC_API_URL = settings.public_api_url  # enlaces de los correos: {PUBLIC_API_URL}/v1/user/...
+RESET_TOKEN_TTL = timedelta(hours=1)
+
+# Respuestas idénticas exista o no la cuenta: no revelan qué correos están registrados
+RESEND_MESSAGE = "Si el correo está registrado y pendiente de verificación, te enviaremos un nuevo enlace."
+FORGOT_MESSAGE = "Si el correo está registrado, te enviaremos un enlace de recuperación."
+
+def _verification_link(token: str) -> str:
+    return f"{PUBLIC_API_URL}/v1/user/verify/{token}"
+
+def _issue_tokens(user) -> user_schemas.Token:
+    claims = {"sub": user.email}
+    return user_schemas.Token(
+        access_token=auth.create_access_token(claims),
+        refresh_token=auth.create_refresh_token(claims),
+        user_info=user_schemas.UserInfo.from_user(user),
+    )
+
+def _reset_token_expired(user) -> bool:
+    expiry = user.reset_password_token_expiry
+    if expiry is None:
+        return True
+    if expiry.tzinfo is None:  # columna sin zona horaria: se guarda en UTC
+        expiry = expiry.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) > expiry
+
+def _too_many_attempts(retry_after: int) -> HTTPException:
+    minutes = max(1, round(retry_after / 60))
+    return HTTPException(
+        status_code=429,
+        detail=f"Demasiados intentos. Vuelve a intentarlo en {minutes} min.",
+        headers={"Retry-After": str(retry_after)},
+    )
 
 @router.get("/")
 def root():
-    return {
-        "service": "API Appalta2",
-        "version": "1.0.0",
-        "status": "running"
-    }
+    return {"service": "API Appalta2", "version": "1.0.0", "status": "running"}
 
-@router.get("/user/help")
-def help(request: Request):
-    return templates.TemplateResponse(
-            request=request,
-            name="verified.html",
-            context={}
-            )
 
-@router.post("/user/register", response_model = user_schemas.UserResponse)
-async def register(user: user_schemas.UserCreate, db: Session = Depends(get_db)):
-    db_user = user_db.get_user_by_email(db, user.email)
-    if db_user:
-        raise HTTPException(status_code=400, detail = "Email ya registrado")
-    
+@router.post("/user/register", response_model=user_schemas.UserResponse)
+def register(user: user_schemas.UserCreate, background: BackgroundTasks, db: Session = Depends(get_db)):
+    if user_db.get_user_by_email(db, user.email):
+        raise HTTPException(status_code=400, detail="Email ya registrado")
+    if user_db.get_user_by_document(db, user.document_of_identity):
+        raise HTTPException(status_code=400, detail="El número de DNI ya está registrado")
+
     verification_token = str(uuid.uuid4())
-    
-    db_user = user_db.create_user(db, user, verification_token)
+    try:
+        db_user = user_db.create_user(db, user, verification_token)
+    except IntegrityError:
+        # Dos registros simultáneos con el mismo DNI o correo: la restricción UNIQUE de la BD decide.
+        db.rollback()
+        raise HTTPException(status_code=400, detail="El número de DNI o el correo ya está registrado")
 
-    verification_link = f"{BACKEND_URL}/v1/user/verify/{verification_token}"
-    await send_verification_email_gmail(user.email, verification_link)
+    # En al envio del correo se realiza en segundo plago sin interrumpir el proceso del registro
+    background.add_task(send_verification_email_gmail, user.email, _verification_link(verification_token))
     return db_user
 
 
-@router.post("/user/login", response_model = user_schemas.Token)
+@router.post("/user/login", response_model=user_schemas.Token)
 def login(user: user_schemas.UserLogin, db: Session = Depends(get_db)):
-    print("user:", user)
+    if retry_after := login_limiter.retry_after(user.email):
+        raise _too_many_attempts(retry_after)
+
     db_user = user_db.autenticate_user(db, user.email, user.password)
     if not db_user:
+        login_limiter.hit(user.email)
         raise HTTPException(status_code=401, detail="Credenciales invalidas")
-    
 
+    login_limiter.reset(user.email.lower())
     if not db_user.is_verified:
-        raise HTTPException(
-            status_code=403,
-            detail="Correo no verificado"
-        )
+        raise HTTPException(status_code=403, detail="Correo no verificado")
+    return _issue_tokens(db_user)
 
-    access_token = auth.create_access_token({
-        "sub": db_user.email
-    })
 
-    refresh_token = auth.create_refresh_token({
-        "sub": db_user.email
-    })
-
-    user_info = user_schemas.UserInfo(
-        firstname = db_user.firstname,
-        father_lastname =db_user.father_lastname,
-        mother_lastname = db_user.mother_lastname,
-        email=db_user.email
-    )
-
-    resp = user_schemas.Token(access_token=access_token, refresh_token=refresh_token, user_info=user_info)
-    print("resp:", resp)
-    return resp
-
-@router.post("/user/refresh", response_model = user_schemas.Token)
+@router.post("/user/refresh", response_model=user_schemas.Token)
 def refresh_token(refresh_token: str = Body(...), db: Session = Depends(get_db)):
-    try:
-        payload = jwt.decode(refresh_token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
-        email = payload.get("sub")
-        if email is None:
-            raise HTTPException(status_code=401, detail="Token invalido")
-    except JWTError:
+    payload = auth.decode_token(refresh_token, auth.REFRESH)
+    if payload is None:
         raise HTTPException(status_code=401, detail="Token invalido")
-    
-    db_user = user_db.get_user_by_email(db, email)
-
+    db_user = user_db.get_user_by_email(db, payload["sub"])
     if not db_user:
         raise HTTPException(status_code=401, detail="Usuario no encontrado")
-    
-    new_access = auth.create_access_token({"sub": db_user.email})
-    new_refresh = auth.create_refresh_token({"sub": db_user.email})
-    
-    user_info = user_schemas.UserInfo(
-        firstname = db_user.firstname,
-        father_lastname =db_user.father_lastname,
-        mother_lastname = db_user.mother_lastname,
-        email=db_user.email
-    )
-
-    return user_schemas.Token(access_token=new_access, refresh_token=new_refresh, user_info=user_info)
+    if auth.issued_before(payload, db_user.password_changed_at):
+        # La contraseña cambió después de iniciar esta sesión: hay que volver a ingresar
+        raise HTTPException(status_code=401, detail="Sesión expirada")
+    return _issue_tokens(db_user)
 
 
 @router.get("/user/me", response_model=user_schemas.UserResponse)
@@ -118,119 +116,61 @@ def get_me(email: str = Depends(auth.verify_token), db: Session = Depends(get_db
     return user
 
 
-@router.get("/user/verify/{token}")
+@router.get("/user/verify/{token}", response_class=HTMLResponse)
 def verify_email(request: Request, token: str, db: Session = Depends(get_db)):
     user = user_db.get_user_by_token(db, token)
     if not user:
-        raise HTTPException(status_code=404, detail="Token inválido")
-    
+        return templates.TemplateResponse(request=request, name="invalid_link.html", status_code=404)
+
     user.is_verified = True
     user.verification_token = None
     db.commit()
+    return templates.TemplateResponse(request=request, name="verified.html")
 
-    return templates.TemplateResponse(
-        request=request,
-        name="verified.html",
-        context={}
-        )
-
-    #return templates.TemplateResponse("verified.html", {"request": request})
 
 @router.post("/user/resend-verification")
-async def resend_verification(req: user_schemas.ResendVerificationRequest, db: Session = Depends(get_db)):
-    print("req.email:", req.email)
+def resend_verification(
+    req: user_schemas.ResendVerificationRequest, background: BackgroundTasks, db: Session = Depends(get_db)
+):
     user = user_db.get_user_by_email(db, req.email)
-    print("user:", user)
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    
-    if user.is_verified:
-        raise HTTPException(status_code=400, detail="Este correo ya ha sido verificado")
-    
+    if user and not user.is_verified and not email_limiter.retry_after(req.email):
+        email_limiter.hit(req.email)
+        user.verification_token = str(uuid.uuid4())
+        db.commit()
+        background.add_task(send_verification_email_gmail, user.email, _verification_link(user.verification_token))
+    return {"message": RESEND_MESSAGE}
 
-    # Generar nuevo token y fecha de expiración
-    new_token = str(uuid.uuid4())
-
-    user.verification_token = new_token
-    
-    db.commit()
-
-    # Generar el nuevo enlace
-    verification_link = f"{BACKEND_URL}/v1/user/verify/{new_token}"
-
-    # Enviar el correo de verificación
-    await send_verification_email_gmail(user.email, verification_link)
-
-    return {"message": "Se ha reenviado el correo de verificación. Revisa tu bandeja de entrada."}  
 
 @router.post("/user/password/forgot")
-async def forgot_password(req: user_schemas.ResetRequest, db: Session = Depends(get_db)):
+def forgot_password(req: user_schemas.ResetRequest, background: BackgroundTasks, db: Session = Depends(get_db)):
     user = user_db.get_user_by_email(db, req.email)
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-
-    # generar token y expiración
-    user.reset_password_token = str(uuid.uuid4())
-    user.reset_password_token_expiry = datetime.now(timezone.utc) + timedelta(hours=1)
-    db.commit()
-
-    # enviar correo con enlace
-    link = f"{BACKEND_URL}/v1/user/reset/{user.reset_password_token}"
-    await send_password_reset_email_gmail(user.email, link)
-
-    return {"message": "Se ha enviado un enlace de recuperación a tu correo."}
+    if user and not email_limiter.retry_after(req.email):
+        email_limiter.hit(req.email)
+        user.reset_password_token = str(uuid.uuid4())
+        user.reset_password_token_expiry = datetime.now(timezone.utc) + RESET_TOKEN_TTL
+        db.commit()
+        link = f"{PUBLIC_API_URL}/v1/user/reset/{user.reset_password_token}"
+        background.add_task(send_password_reset_email_gmail, user.email, link)
+    return {"message": FORGOT_MESSAGE}
 
 
 @router.get("/user/reset/{token}", response_class=HTMLResponse)
 def serve_reset_page(token: str, request: Request, db: Session = Depends(get_db)):
     user = user_db.get_user_by_reset_password_token(db, token)
-    
-    if not user:
-        return templates.TemplateResponse(
-                    request=request,
-                    name="invalid_link.html",
-                    context={}
-                    )
-    
-    expiry = user.reset_password_token_expiry
-    # Si la fecha es naive, añádele zona horaria UTC
-    if expiry.tzinfo is None:
-        expiry = expiry.replace(tzinfo=timezone.utc)
-
-    if datetime.now(timezone.utc) > expiry:
-        print("Enlace a expirado")
-        return templates.TemplateResponse(
-                    request=request,
-                    name="invalid_link.html",
-                    context={}
-                    )
-
-    return templates.TemplateResponse(
-        request=request,
-        name="reset_password.html",
-        context={"token": token}
-    )
-    #return templates.TemplateResponse("reset_password.html", {"request": request, "token": token})
+    if not user or _reset_token_expired(user):
+        return templates.TemplateResponse(request=request, name="invalid_link.html")
+    return templates.TemplateResponse(request=request, name="reset_password.html", context={"token": token})
 
 @router.post("/user/password/reset")
 def reset_password(req: user_schemas.ResetPassword, db: Session = Depends(get_db)):
     user = user_db.get_user_by_reset_password_token(db, req.token)
-
-    if not user:
+    if not user or _reset_token_expired(user):
         raise HTTPException(status_code=400, detail="Token inválido o expirado.")
-    
-    expiry = user.reset_password_token_expiry
-    # Si la fecha es naive, añádele zona horaria UTC
-    if expiry.tzinfo is None:
-        expiry = expiry.replace(tzinfo=timezone.utc)
 
-    if datetime.now(timezone.utc) > expiry:
-        raise HTTPException(status_code=400, detail="Token inválido o expirado.")
-    
-    # actualizar contraseña
     user.hashed_password = auth.hash_password(req.new_password)
+    user.password_changed_at = datetime.now(timezone.utc)  # cierra las sesiones abiertas
     user.reset_password_token = None
     user.reset_password_token_expiry = None
     db.commit()
-
+    login_limiter.reset(user.email.lower())
     return {"message": "Contraseña actualizada con éxito."}

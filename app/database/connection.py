@@ -1,30 +1,22 @@
-from sqlalchemy import create_engine, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
-import os
-# Cargar variables desde .env
-load_dotenv()
+from sqlalchemy import create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Obtener la URL desde .env o variables del sistema si las hay
-raw_url = os.getenv("DATABASE_URL")
+from app.config import settings
 
-if not raw_url:
-    raise ValueError("❌ DATABASE_URL no está definida. Asegúrate de tener un archivo .env")
+DATABASE_URL = settings.database_url
 
-# Render entrega "postgres://"
-# SQLAlchemy necesita "postgresql+psycopg2://"
-if raw_url.startswith("postgres://"):
-    raw_url = raw_url.replace("postgres://", "postgresql+psycopg2://", 1)
-
-#DATABASE_URL=postgresql+psycopg2://postgres:admin@localhost:5432/appalta2
-DATABASE_URL = raw_url
-
-
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit = False, autoflush=False, bind = engine)
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=settings.db_pool_size,
+    max_overflow=settings.db_max_overflow,
+    pool_pre_ping=True,  # descarta conexiones cortadas por el servidor o el proxy
+    pool_recycle=1800,
+    connect_args={"application_name": "appalta2-api"},
+)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+
 
 def get_db():
     db = SessionLocal()
