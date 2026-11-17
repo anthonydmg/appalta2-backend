@@ -68,9 +68,6 @@ HEALTHCHECK --interval=30s \
             --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/', timeout=4)" || exit 1
 
-# Ejecutar entrypoint antes de iniciar FastAPI
-ENTRYPOINT ["docker-entrypoint.sh"]
-
 # Iniciar Uvicorn
 CMD ["uvicorn", "app.main:app", \
      "--host", "0.0.0.0", \

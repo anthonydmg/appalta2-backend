@@ -14,6 +14,7 @@ from app.services.signature_hmac import build_message, verify_signature
 from app.schemas.station_measurement import StationMeasurementRequest, StationMeasurementEvent, SensorMeasurementEvent
 from app.models.station_measurement import StationMeasurement
 from app.services.sse_manager import sse_manager
+from app.config.constants import MAX_DRIFT_SECONDS
 from sse_starlette.sse import EventSourceResponse
 from typing import Optional
 import logging
@@ -56,7 +57,6 @@ async def recive_data(
             )
     
     print(f"station_code:{station_code}")
-    #expected = API_KEYS.get(station_code)
 
     print(data.timestamp)
 
@@ -64,11 +64,11 @@ async def recive_data(
  
     current_time = int(time.time())
 
-    #if abs(current_time - data.timestamp) > MAX_DRIFT_SECONDS:
-    #    raise HTTPException(
-    #         status_code=401,
-    #         detail="Timestamp inválido o expirado"
-    #     ) 
+    if abs(current_time - data.timestamp) > MAX_DRIFT_SECONDS:
+       raise HTTPException(
+             status_code=401,
+             detail="Timestamp inválido o expirado"
+         ) 
     
     message = build_message(
         station_code.strip(),
@@ -76,8 +76,7 @@ async def recive_data(
     )
     print("message:\n", message)
     print()
-    secret_key = station.secret_key#SECRET_KEYS[station_code]
-
+    secret_key = station.secret_key
     
     if not verify_signature(
         message,
@@ -99,15 +98,7 @@ async def recive_data(
     #            status_code=401,
     #            detail="Timestamp repetido"
     #        )
-    print("TIMESTAMP NUEVO")
-    #LAST_TIMESTAMPS[station_code] = data.timestamp
-    
-    # station = get_station_by_station_code(
-    #     db,
-    #     station_code
-    # )
-
-    data.timestamp = current_time
+    print("Verificacion Completa")
     
     measurement = StationMeasurement(
         station_id=station.id,

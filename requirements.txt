@@ -4,6 +4,8 @@ uvicorn
 python-jose[cryptography]
 passlib[bcrypt]
 pydantic[email]
+python-multipart
+pillow
 python-dotenv
 bcrypt==4.0.1
 python-dotenv

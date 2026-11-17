@@ -32,6 +32,26 @@ LEGACY_ENV_NAMES = {
     "USE_CREDENTIALS": "MAIL_USE_CREDENTIALS",
 }
 
+STORAGE_BASE_PATH = Path(
+    os.getenv(
+        "STORAGE_BASE_PATH",
+        "/app/storage/diagnosticos"
+    )
+).resolve()
+
+print("STORAGE_BASE_PATH:", STORAGE_BASE_PATH)
+OPTIMIZED_PATH = STORAGE_BASE_PATH / "optimized"
+ORIGINAL_PATH = STORAGE_BASE_PATH / "original"
+
+MAX_IMAGE_SIZE = 15 * 1024 * 1024
+MAX_BATCH_SIZE = 5
+
+# Límite total aproximado del lote
+MAX_BATCH_SIZE_BYTES = MAX_IMAGE_SIZE * MAX_BATCH_SIZE
+
+MAX_OPTIMIZED_IMAGE_SIZE: int = 15 * 1024 * 1024
+MAX_OPTIMIZED_BATCH_FILES: int = 5
+MAX_OPTIMIZED_BATCH_SIZE: int = 50 * 1024 * 1024
 
 def _env(name: str) -> AliasChoices:
     """Nombre actual de la variable y, si existe, su nombre anterior."""
