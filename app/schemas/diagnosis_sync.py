@@ -5,7 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, ConfigDict
 
 
-class SymptomSync(BaseModel):
+class DetectedLeafConditionSyncItem(BaseModel):
     id_class_model: int
 
     probability: float = Field(
@@ -35,7 +35,7 @@ class DiagnosisSyncItem(BaseModel):
         le=180
     )
 
-    symptoms: list[SymptomSync] = Field(
+    detected_leaf_conditions: list[DetectedLeafConditionSyncItem] = Field(
         default_factory=list,
         max_length=100
     )

@@ -9,8 +9,8 @@ from sqlalchemy import (
 from app.database.connection import Base
 
 
-class DetectedCondition(Base):
-    __tablename__ = "detected_conditions"
+class DetectedLeafCondition(Base):
+    __tablename__ = "detected_leaf_conditions"
 
     id = Column(
         BigInteger,
@@ -27,7 +27,7 @@ class DetectedCondition(Base):
         nullable=False
     )
 
-    id_class = Column(
+    id_condition = Column(
         BigInteger,
         ForeignKey("leaf_conditions.id"),
         nullable=False
@@ -41,7 +41,7 @@ class DetectedCondition(Base):
     __table_args__ = (
         UniqueConstraint(
             "id_diagnosis",
-            "id_class",
-            name="uq_detected_conditions_diagnosis_class"
+            "id_condition",
+            name="uq_detected_leaf_conditions_diagnosis_class"
         ),
     )

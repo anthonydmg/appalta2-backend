@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from app.models.image import Image
 from app.models.leaf_condition import LeafCondition
 from app.models.diagnosis import Diagnosis
-from app.models.detected_condition import DetectedCondition
+from app.models.detected_condition import DetectedLeafCondition
 
 from app.schemas.diagnosis_sync import DiagnosisSyncItem
 
@@ -75,7 +75,7 @@ def register_diagnosis_metadata(
                 "La imagen ya está asociada a otro registro o diagnóstico."
             )
 
-        model_class_ids = [s.id_class_model for s in item.symptoms]
+        model_class_ids = [s.id_class_model for s in item.detected_leaf_conditions]
         if len(model_class_ids) != len(set(model_class_ids)):
             raise SyncConflictError("El diagnóstico contiene clases repetidas.")
 
@@ -134,11 +134,11 @@ def register_diagnosis_metadata(
         db.add(diagnosis)
         db.flush()
 
-        for symptom in item.symptoms:
-            db.add(DetectedCondition(
+        for leaf_condition in item.detected_leaf_conditions:
+            db.add(DetectedLeafCondition(
                 id_diagnosis=diagnosis.id,
-                id_class=class_map[symptom.id_class_model].id,
-                probability=Decimal(str(symptom.probability)),
+                id_class=class_map[leaf_condition.id_class_model].id,
+                probability=Decimal(str(leaf_condition.probability)),
             ))
 
         db.commit()
