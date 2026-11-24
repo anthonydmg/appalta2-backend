@@ -8,6 +8,8 @@ python-multipart
 pillow
 python-dotenv
 boto3
+geopandas
+geoalchemy2
 bcrypt==4.0.1
 python-dotenv
 sse-starlette

@@ -1,4 +1,21 @@
 
+CREATE TABLE field_mappings(
+    id BIGSERIAL PRIMARY KEY,
+    field_mapping_id VARCHAR(100) NOT NULL UNIQUE,
+    field_mapping_name VARCHAR(100) NOT NULL,
+    flight_date DATE NOT NULL,
+    field_id BIGINT NOT NULL, 
+)
+
+
+CREATE TABLE fields(
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    crop_common_name VARCHAR(30) NOT NULL DEFAULT 'Palto',
+    crop_scientific_name VARCHAR(30) NOT NULL DEFAULT 'Persea americana',
+    crop_variety VARCHAR(30) NOT NULL DEFAULT 'Hass',
+)
+
 CREATE TABLE flights (
     id BIGSERIAL PRIMARY KEY,
 
