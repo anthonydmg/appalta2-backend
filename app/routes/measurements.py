@@ -13,6 +13,9 @@ from app.schemas.sensor_measurement import SensorMeasurementHistoryItem, SensorM
 from app.services.signature_hmac import build_message, verify_signature
 from app.schemas.station_measurement import StationMeasurementRequest, StationMeasurementEvent, SensorMeasurementEvent
 from app.models.station_measurement import StationMeasurement
+from app.services.station_location_service import (
+    update_station_location
+)
 from app.services.sse_manager import sse_manager
 from app.config.constants import MAX_DRIFT_SECONDS
 from sse_starlette.sse import EventSourceResponse
@@ -125,6 +128,15 @@ async def recive_data(
         logger.exception(
             "No fue posible guardar los eventos."
         )
+
+
+     # 3. Actualizar ubicación geográfica mediante PostGIS
+    location_updated = update_station_location(
+        db=db,
+        station_id=station.id,
+        latitude=data.latitude,
+        longitude=data.longitude
+    )
 
 
     event = StationMeasurementEvent(

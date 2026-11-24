@@ -1,0 +1,51 @@
+
+services:
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: appalta-rustfs
+    restart: unless-stopped
+    command: ["/data"]
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      RUSTFS_ADDRESS: "0.0.0.0:9000"
+      RUSTFS_CONSOLE_ADDRESS: "0.0.0.0:9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+    volumes:
+      - rustfs-data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  titiler:
+    image: ghcr.io/developmentseed/titiler:2.4.1
+    container_name: appalta-titiler
+    restart: unless-stopped
+    command:
+      - uvicorn
+      - titiler.application.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --workers
+      - "1"
+    environment:
+      AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY}
+      AWS_REGION: us-east-1
+      AWS_S3_ENDPOINT: "http://rustfs:9000"
+      AWS_VIRTUAL_HOSTING: "FALSE"
+      GDAL_CACHEMAX: "256"
+      GDAL_DISABLE_READDIR_ON_OPEN: EMPTY_DIR
+      GDAL_HTTP_MERGE_CONSECUTIVE_RANGES: "YES"
+      GDAL_HTTP_MULTIPLEX: "YES"
+      VSI_CACHE: "TRUE"
+      VSI_CACHE_SIZE: "536870912"
+    ports:
+      - "8001:8000"
+    depends_on:
+      - rustfs
+
+volumes:
+  rustfs-data:
