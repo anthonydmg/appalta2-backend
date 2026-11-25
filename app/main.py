@@ -10,6 +10,9 @@ from app.routes.user import router as user_router
 from app.routes.diagnosis import router as diagnosis_router
 from app.routes.scientific_knowledge import router as scientific_knowledge_router
 from app.routes.maps import router as maps_router
+from app.routes.crop_fields import router as crop_fields_router
+from app.routes.field_mappings import router as field_mappings_router
+
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes.agroclimatic_reports import (
     router as agroclimatic_reports_router
@@ -52,3 +55,6 @@ app.include_router(
     prefix=API_PREFIX,
 )
 app.include_router(maps_router, prefix=API_PREFIX)
+app.include_router(crop_fields_router, prefix=API_PREFIX)
+
+app.include_router(field_mappings_router, prefix=API_PREFIX)
