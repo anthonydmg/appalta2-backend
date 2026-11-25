@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -30,3 +30,21 @@ class CropFieldResponse(CropFieldCreate):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class LatestFieldMappingResponse(BaseModel):
+    id: int
+    field_mapping_id: str
+    field_mapping_name: str
+    flight_date: date
+    status: str
+
+
+class CropFieldOverviewResponse(BaseModel):
+    id: int
+    field_code: str
+    name: str
+    department: str | None = None
+    province: str | None = None
+    district: str | None = None
+    latest_field_mapping: LatestFieldMappingResponse | None = None

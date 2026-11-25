@@ -8,14 +8,14 @@ from app.services.rustfs import (
 )
 
 # Directorio donde están tus archivos
-DATA_DIR = Path(r"C:\Users\Anthony\Downloads\geotiff\procesados")
+DATA_DIR = Path(r"C:\Users\Anthony\Local\paltas_proyecto\vuelos\analysis\noviembre-2026-david-anticona")
 
 # Organización dentro de RustFS
-BASE_KEY = "flights/auquibamaba-oct-2025"
+BASE_KEY = "flights/noviembre-2026-david-anticona"
 
 # Archivos locales
-raster_path = DATA_DIR / "mosaic_auquibamaba-oct-2025_cog.tif"
-geojson_path = DATA_DIR / "trees_ndvi.geojson"
+raster_path = DATA_DIR / "mosaic" / "rgb" / "rgb_cog.tif"
+geojson_path = DATA_DIR / "mosaic" / "trees_ndvi.geojson"
 
 # 1. Verificar conexión
 print(test_rustfs_connection())
